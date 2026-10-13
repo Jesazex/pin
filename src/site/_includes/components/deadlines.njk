@@ -55,8 +55,25 @@
     return row;
   }
 
+  function columnsByNearest(columns, rows) {
+    var rank = {};
+    var i;
+    var name;
+    for (i = 0; i < columns.length; i++) rank[columns[i]] = rows.length + 1;
+    for (i = 0; i < rows.length; i++) {
+      var cells = rows[i].cells || {};
+      for (name in cells) {
+        if (!Object.prototype.hasOwnProperty.call(cells, name)) continue;
+        if (cells[name] && cells[name].length && rank[name] > i) rank[name] = i;
+      }
+    }
+    return columns.slice().sort(function (a, b) {
+      return rank[a] - rank[b] || String(a).localeCompare(String(b), "ru");
+    });
+  }
+
   function renderTable(table) {
-    var columns = table.columns || [];
+    var columns = columnsByNearest(table.columns || [], table.rows || []);
     var rows = table.rows || [];
     var tableEl = document.createElement("table");
     var head = document.createElement("thead");
@@ -109,6 +126,14 @@
         }
         body.appendChild(tr);
       }
+      if (r + span < rows.length) {
+        var gap = document.createElement("tr");
+        gap.className = "deadline-week-gap";
+        var gapCell = document.createElement("td");
+        gapCell.colSpan = columns.length + 2;
+        gap.appendChild(gapCell);
+        body.appendChild(gap);
+      }
       r += span;
     }
     tableEl.appendChild(body);
@@ -117,7 +142,11 @@
 
   function closeTable() {
     var overlay = document.getElementById("dg-deadline-table");
-    if (overlay) overlay.remove();
+    if (overlay) {
+      var scroll = overlay.querySelector(".deadline-table-scroll");
+      if (scroll && scroll._deadlineUnpin) scroll._deadlineUnpin();
+      overlay.remove();
+    }
     document.removeEventListener("keydown", onTableKey);
   }
 
@@ -132,6 +161,7 @@
     var scale = 1;
     var startDist = 0;
     var startScale = 1;
+    var pinTable = scroll.previousElementSibling && scroll.previousElementSibling.querySelector("table");
 
     function distance(touches) {
       var dx = touches[0].clientX - touches[1].clientX;
@@ -144,6 +174,7 @@
       if (next > 3) next = 3;
       scale = next;
       table.style.zoom = String(scale);
+      if (pinTable) pinTable.style.zoom = String(scale);
     }
 
     scroll.addEventListener("touchstart", function (event) {
@@ -164,6 +195,55 @@
 
     scroll.addEventListener("touchend", endPinch);
     scroll.addEventListener("touchcancel", endPinch);
+  }
+
+  function pinColumnHeader(panel, scroll, tableEl) {
+    var pin = document.createElement("div");
+    pin.className = "deadline-table-pin";
+    var pinTable = document.createElement("table");
+    pinTable.className = "deadline-grid";
+    pinTable.appendChild(tableEl.tHead.cloneNode(true));
+    pin.appendChild(pinTable);
+    panel.insertBefore(pin, scroll);
+    tableEl.className = "deadline-grid";
+
+    var src = tableEl.tHead.rows[0].cells;
+    var dst = pinTable.tHead.rows[0].cells;
+    var widths = [];
+    var total = 0;
+    var i;
+    for (i = 0; i < src.length; i++) {
+      var width = src[i].getBoundingClientRect().width;
+      widths.push(width);
+      total += width;
+      dst[i].style.boxSizing = "border-box";
+      dst[i].style.width = width + "px";
+      dst[i].style.minWidth = width + "px";
+      dst[i].style.maxWidth = width + "px";
+    }
+    var cols = document.createElement("colgroup");
+    for (i = 0; i < widths.length; i++) {
+      var col = document.createElement("col");
+      col.style.width = widths[i] + "px";
+      cols.appendChild(col);
+    }
+    tableEl.style.tableLayout = "fixed";
+    tableEl.style.width = total + "px";
+    tableEl.insertBefore(cols, tableEl.firstChild);
+    pinTable.style.tableLayout = "fixed";
+    pinTable.style.width = total + "px";
+    tableEl.tHead.className = "deadline-thead-hidden";
+    tableEl.tHead.setAttribute("aria-hidden", "true");
+
+    function syncShift() {
+      pinTable.style.transform = "translateX(" + (-scroll.scrollLeft) + "px)";
+    }
+    scroll.addEventListener("scroll", syncShift);
+    window.addEventListener("resize", syncShift);
+    scroll._deadlineUnpin = function () {
+      window.removeEventListener("resize", syncShift);
+    };
+    syncShift();
   }
 
   function openTable(table) {
@@ -190,22 +270,25 @@
     header.appendChild(close);
     var scroll = document.createElement("div");
     scroll.className = "deadline-table-scroll";
+    var tableEl = null;
     if (!table.rows || !table.rows.length) {
       var empty = document.createElement("p");
       empty.className = "deadline-table-empty";
       empty.textContent = "Нет предстоящих дат";
       scroll.appendChild(empty);
     } else {
-      scroll.appendChild(renderTable(table));
+      tableEl = renderTable(table);
+      scroll.appendChild(tableEl);
     }
     panel.appendChild(header);
     panel.appendChild(scroll);
-    bindDeadlinePinch(scroll);
     overlay.appendChild(panel);
     overlay.addEventListener("click", function (event) {
       if (event.target === overlay) closeTable();
     });
     document.body.appendChild(overlay);
+    if (tableEl) pinColumnHeader(panel, scroll, tableEl);
+    bindDeadlinePinch(scroll);
     document.addEventListener("keydown", onTableKey);
     close.focus();
   }
