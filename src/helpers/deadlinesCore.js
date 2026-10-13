@@ -265,12 +265,14 @@ var dgDeadlinesApi = (function () {
 
   /**
    * One row per calendar day from today through the latest heading still ahead,
-   * including days with no deadlines. Columns are control-form folders, ДЗ first.
+   * including days with no deadlines. Columns are control-form folders, soonest
+   * deadline first. ДЗ leads when two forms fall on the same day.
    */
   function buildDeadlineTable(candidates, today) {
     var today0 = startOfDay(today || moscowToday());
     var year = today0.getFullYear();
     var typeSet = {};
+    var nearestTime = {};
     var groups = new Map();
     var latestTime = null;
     var list = candidates || [];
@@ -279,6 +281,9 @@ var dgDeadlinesApi = (function () {
       var when = new Date(year, item.month, item.day);
       if (when < today0) continue;
       typeSet[item.typeName] = true;
+      if (nearestTime[item.typeName] == null || when.getTime() < nearestTime[item.typeName]) {
+        nearestTime[item.typeName] = when.getTime();
+      }
       if (latestTime === null || when.getTime() > latestTime) latestTime = when.getTime();
       var key = String(when.getTime());
       if (!groups.has(key)) {
@@ -288,7 +293,9 @@ var dgDeadlinesApi = (function () {
       if (!row.byType[item.typeName]) row.byType[item.typeName] = [];
       row.byType[item.typeName].push({ subjectName: item.subjectName, href: item.href });
     }
-    var columns = Object.keys(typeSet).sort(compareControlTypes);
+    var columns = Object.keys(typeSet).sort(function (a, b) {
+      return nearestTime[a] - nearestTime[b] || compareControlTypes(a, b);
+    });
     var rows = [];
     if (latestTime === null) return { columns: columns, rows: rows };
     var cursor = new Date(today0.getFullYear(), today0.getMonth(), today0.getDate());

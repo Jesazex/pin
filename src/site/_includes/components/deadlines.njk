@@ -55,23 +55,6 @@
     return row;
   }
 
-  function weekBrace() {
-    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("class", "deadline-week-brace");
-    svg.setAttribute("viewBox", "0 0 24 100");
-    svg.setAttribute("preserveAspectRatio", "none");
-    svg.setAttribute("aria-hidden", "true");
-    svg.setAttribute("width", "12");
-    svg.setAttribute("height", "100%");
-    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute(
-      "d",
-      "M20 2 C12 2 12 2 12 18 L12 40 C12 47 12 47 6 50 C12 53 12 53 12 60 L12 82 C12 98 12 98 20 98"
-    );
-    svg.appendChild(path);
-    return svg;
-  }
-
   function renderTable(table) {
     var columns = table.columns || [];
     var rows = table.rows || [];
@@ -112,7 +95,6 @@
           weekText.className = "deadline-week-label";
           weekText.textContent = rows[r].weekLabel || (week + " неделя");
           weekCell.appendChild(weekText);
-          weekCell.appendChild(weekBrace());
           tr.appendChild(weekCell);
         }
         var dateCell = document.createElement("th");
