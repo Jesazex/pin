@@ -152,12 +152,6 @@ var dgDeadlinesApi = (function () {
     return String(a.subjectName).localeCompare(String(b.subjectName), "ru");
   }
 
-  function compareControlTypes(a, b) {
-    if (a === "ДЗ" && b !== "ДЗ") return -1;
-    if (b === "ДЗ" && a !== "ДЗ") return 1;
-    return String(a).localeCompare(String(b), "ru");
-  }
-
   function nearestAdjective(typeName, count) {
     if (count > 1) return "Ближайшие";
     if (FEMININE_TYPES[typeName]) return "Ближайшая";
@@ -260,17 +254,20 @@ var dgDeadlinesApi = (function () {
   }
 
   function weekLabel(week) {
-    return week + " неделя";
+    var kind = week % 2 === 0 ? "Числитель" : "Знаменатель";
+    return week + " неделя (" + kind + ")";
   }
 
   /**
    * One row per calendar day from today through the latest heading still ahead,
-   * including days with no deadlines. Columns are control-form folders, ДЗ first.
+   * including days with no deadlines. Columns are ordered by the soonest
+   * upcoming deadline, then by name.
    */
   function buildDeadlineTable(candidates, today) {
     var today0 = startOfDay(today || moscowToday());
     var year = today0.getFullYear();
     var typeSet = {};
+    var nearestTime = {};
     var groups = new Map();
     var latestTime = null;
     var list = candidates || [];
@@ -279,6 +276,9 @@ var dgDeadlinesApi = (function () {
       var when = new Date(year, item.month, item.day);
       if (when < today0) continue;
       typeSet[item.typeName] = true;
+      if (nearestTime[item.typeName] == null || when.getTime() < nearestTime[item.typeName]) {
+        nearestTime[item.typeName] = when.getTime();
+      }
       if (latestTime === null || when.getTime() > latestTime) latestTime = when.getTime();
       var key = String(when.getTime());
       if (!groups.has(key)) {
@@ -288,7 +288,11 @@ var dgDeadlinesApi = (function () {
       if (!row.byType[item.typeName]) row.byType[item.typeName] = [];
       row.byType[item.typeName].push({ subjectName: item.subjectName, href: item.href });
     }
-    var columns = Object.keys(typeSet).sort(compareControlTypes);
+    var columns = Object.keys(typeSet).sort(function (a, b) {
+      var byDate = nearestTime[a] - nearestTime[b];
+      if (byDate) return byDate;
+      return String(a).localeCompare(String(b), "ru");
+    });
     var rows = [];
     if (latestTime === null) return { columns: columns, rows: rows };
     var cursor = new Date(today0.getFullYear(), today0.getMonth(), today0.getDate());

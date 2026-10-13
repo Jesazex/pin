@@ -215,7 +215,7 @@ describe("deadlinesUtils", () => {
     expect(lines[0].subjects.map((item) => item.href)).toEqual(["/infa#a", "/fizika#a"]);
   });
 
-  it("builds a row for every day from today through the last recorded date, with ДЗ first", () => {
+  it("builds a row for every day from today through the last recorded date", () => {
     const today = new Date(2026, 8, 30);
     const table = buildDeadlineTable(
       [
@@ -229,18 +229,19 @@ describe("deadlinesUtils", () => {
     );
     const expectedDays =
       Math.round((Date.UTC(2026, 11, 18) - Date.UTC(2026, 8, 30)) / 86400000) + 1;
-    expect(table.columns).toEqual(["ДЗ", "БДЗ", "ЛР"]);
+    expect(table.columns).toEqual(["ДЗ", "ЛР", "БДЗ"]);
     expect(table.rows).toHaveLength(expectedDays);
     expect(table.rows[0].label).toBe("30 сентября");
     expect(table.rows[0].week).toBe(5);
-    expect(table.rows[0].weekLabel).toBe("5 неделя");
+    expect(table.rows[0].weekLabel).toBe("5 неделя (Знаменатель)");
     expect(table.rows[1].label).toBe("1 октября");
-    expect(table.rows[1].weekLabel).toBe("5 неделя");
+    expect(table.rows[1].weekLabel).toBe("5 неделя (Знаменатель)");
     expect(table.rows[2].label).toBe("2 октября");
-    expect(table.rows[4].weekLabel).toBe("5 неделя");
+    expect(table.rows[4].weekLabel).toBe("5 неделя (Знаменатель)");
     expect(table.rows[5].label).toBe("5 октября");
     expect(table.rows[5].week).toBe(6);
-    expect(table.rows.at(-1).weekLabel).toBe("16 неделя");
+    expect(table.rows[5].weekLabel).toBe("6 неделя (Числитель)");
+    expect(table.rows.at(-1).weekLabel).toBe("16 неделя (Числитель)");
     expect(table.rows[2].cells).toEqual({ ДЗ: [], БДЗ: [], ЛР: [] });
     expect(table.rows.at(-1).label).toBe("18 декабря");
     expect(table.rows.at(-1).cells["БДЗ"].map((item) => item.subjectName)).toEqual(["Физика"]);
@@ -250,6 +251,29 @@ describe("deadlinesUtils", () => {
     for (let i = 1; i < table.rows.length; i++) {
       expect(table.rows[i].time - table.rows[i - 1].time).toBe(86400000);
     }
+  });
+
+  it("puts the column with the soonest deadline first", () => {
+    const today = new Date(2026, 9, 13);
+    const tied = buildDeadlineTable(
+      [
+        { typeName: "БДЗ", subjectName: "Физика", day: 29, month: 9, displayDate: "29 октября", href: "/bdz" },
+        { typeName: "ЛР", subjectName: "Информатика", day: 14, month: 9, displayDate: "14 октября", href: "/lr" },
+        { typeName: "КР", subjectName: "Линал", day: 14, month: 9, displayDate: "14 октября", href: "/kr" },
+        { typeName: "ДЗ", subjectName: "Матан", day: 14, month: 9, displayDate: "14 октября", href: "/dz" },
+      ],
+      today
+    );
+    expect(tied.columns).toEqual(["ДЗ", "КР", "ЛР", "БДЗ"]);
+
+    const soonerLab = buildDeadlineTable(
+      [
+        { typeName: "ДЗ", subjectName: "Матан", day: 20, month: 9, displayDate: "20 октября", href: "/dz" },
+        { typeName: "ЛР", subjectName: "Информатика", day: 14, month: 9, displayDate: "14 октября", href: "/lr" },
+      ],
+      today
+    );
+    expect(soonerLab.columns).toEqual(["ЛР", "ДЗ"]);
   });
 
   it("counts academic weeks from the week that contains 1 September", () => {
