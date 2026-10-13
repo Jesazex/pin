@@ -8,7 +8,9 @@ import {
   resolveUpcomingDate,
   daysUntil,
   relativeSuffix,
+  relativePhrase,
   nearestAdjective,
+  academicWeekNumber,
   isPastControlDate,
   markPastControlSections,
   buildDeadlineTable,
@@ -52,6 +54,12 @@ describe("deadlinesUtils", () => {
     expect(relativeSuffix(25)).toBe("25 дней");
   });
 
+  it("says tomorrow instead of one day from now", () => {
+    expect(relativePhrase(0)).toBe("Сегодня");
+    expect(relativePhrase(1)).toBe("Завтра");
+    expect(relativePhrase(2)).toBe("через 2 дня");
+  });
+
   it("picks gender for nearest adjective", () => {
     expect(nearestAdjective("ДЗ")).toBe("Ближайшее");
     expect(nearestAdjective("БДЗ")).toBe("Ближайшее");
@@ -59,6 +67,9 @@ describe("deadlinesUtils", () => {
     expect(nearestAdjective("ЛР")).toBe("Ближайшая");
     expect(nearestAdjective("Экзамен")).toBe("Ближайшее");
     expect(nearestAdjective("Контрольная")).toBe("Ближайшая");
+    expect(nearestAdjective("ДЗ", 2)).toBe("Ближайшие");
+    expect(nearestAdjective("КР", 3)).toBe("Ближайшие");
+    expect(nearestAdjective("ЛР", 1)).toBe("Ближайшая");
   });
 
   it("treats a control date as past only before Moscow today", () => {
@@ -185,7 +196,7 @@ describe("deadlinesUtils", () => {
     const candidates = getControlDeadlineCandidates(data);
 
     expect(candidates.some((item) => "days" in item)).toBe(false);
-    expect(getControlDeadlines(data, september29)[0].linkText).toBe("Матан - через 1 день");
+    expect(getControlDeadlines(data, september29)[0].linkText).toBe("Матан - Завтра");
     expect(pickControlDeadlines(candidates, october1)[0].linkText).toBe("Физика - Сегодня");
   });
 
@@ -199,6 +210,7 @@ describe("deadlinesUtils", () => {
       ],
       today
     );
+    expect(lines[0].label).toBe("Ближайшие ДЗ:");
     expect(lines[0].linkText).toBe("Информатика, Физика - через 3 дня");
     expect(lines[0].subjects.map((item) => item.href)).toEqual(["/infa#a", "/fizika#a"]);
   });
@@ -220,8 +232,15 @@ describe("deadlinesUtils", () => {
     expect(table.columns).toEqual(["ДЗ", "БДЗ", "ЛР"]);
     expect(table.rows).toHaveLength(expectedDays);
     expect(table.rows[0].label).toBe("30 сентября");
+    expect(table.rows[0].week).toBe(5);
+    expect(table.rows[0].weekLabel).toBe("5 неделя");
     expect(table.rows[1].label).toBe("1 октября");
+    expect(table.rows[1].weekLabel).toBe("5 неделя");
     expect(table.rows[2].label).toBe("2 октября");
+    expect(table.rows[4].weekLabel).toBe("5 неделя");
+    expect(table.rows[5].label).toBe("5 октября");
+    expect(table.rows[5].week).toBe(6);
+    expect(table.rows.at(-1).weekLabel).toBe("16 неделя");
     expect(table.rows[2].cells).toEqual({ ДЗ: [], БДЗ: [], ЛР: [] });
     expect(table.rows.at(-1).label).toBe("18 декабря");
     expect(table.rows.at(-1).cells["БДЗ"].map((item) => item.subjectName)).toEqual(["Физика"]);
@@ -231,6 +250,25 @@ describe("deadlinesUtils", () => {
     for (let i = 1; i < table.rows.length; i++) {
       expect(table.rows[i].time - table.rows[i - 1].time).toBe(86400000);
     }
+  });
+
+  it("counts academic weeks from the week that contains 1 September", () => {
+    // 1 Sep 2026 is Tuesday, so week 1 is Mon 31 Aug – Sun 6 Sep.
+    expect(academicWeekNumber(new Date(2026, 7, 31))).toBe(1);
+    expect(academicWeekNumber(new Date(2026, 8, 1))).toBe(1);
+    expect(academicWeekNumber(new Date(2026, 8, 6))).toBe(1);
+    expect(academicWeekNumber(new Date(2026, 8, 7))).toBe(2);
+    // 13 Oct 2026 is Tuesday of week 7 (Mon 12 Oct – Sun 18 Oct).
+    expect(academicWeekNumber(new Date(2026, 9, 11))).toBe(6);
+    expect(academicWeekNumber(new Date(2026, 9, 12))).toBe(7);
+    expect(academicWeekNumber(new Date(2026, 9, 13))).toBe(7);
+    expect(academicWeekNumber(new Date(2026, 9, 18))).toBe(7);
+    expect(academicWeekNumber(new Date(2026, 9, 19))).toBe(8);
+    // January continues the academic year that started the previous September.
+    expect(academicWeekNumber(new Date(2027, 0, 11))).toBe(20);
+    // 1 Sep 2025 is Monday, so the Sunday before is week 53 of the prior academic year.
+    expect(academicWeekNumber(new Date(2025, 7, 31))).toBe(53);
+    expect(academicWeekNumber(new Date(2025, 8, 1))).toBe(1);
   });
 
   it("runs the inlined browser bundle without Node globals", () => {
