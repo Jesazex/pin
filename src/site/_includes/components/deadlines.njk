@@ -110,7 +110,12 @@
           weekCell.className = "deadline-week";
           var weekText = document.createElement("span");
           weekText.className = "deadline-week-label";
-          weekText.textContent = rows[r].weekLabel || (week + " неделя");
+          var weekInner = document.createElement("span");
+          weekInner.className = "deadline-week-text";
+          var weekFull = rows[r].weekLabel || (week + " неделя");
+          weekInner.textContent = weekFull;
+          weekInner.title = weekFull;
+          weekText.appendChild(weekInner);
           weekCell.appendChild(weekText);
           tr.appendChild(weekCell);
         }
@@ -143,7 +148,10 @@
 
   function closeTable() {
     var overlay = document.getElementById("dg-deadline-table");
-    if (overlay) overlay.remove();
+    if (overlay) {
+      if (overlay._deadlineUnbind) overlay._deadlineUnbind();
+      overlay.remove();
+    }
     document.removeEventListener("keydown", onTableKey);
   }
 
@@ -151,7 +159,58 @@
     if (event.key === "Escape") closeTable();
   }
 
-  function bindDeadlinePinch(scroll) {
+  function clipWeekLabels(tableEl) {
+    if (!tableEl) return;
+    var nodes = tableEl.querySelectorAll(".deadline-week-text");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      var full = el.getAttribute("data-full") || el.title || el.textContent;
+      el.setAttribute("data-full", full);
+      el.title = full;
+      el.textContent = full;
+      el.style.maxHeight = "none";
+      var needed = el.getBoundingClientRect().height;
+      var available = el.parentElement.getBoundingClientRect().height;
+      el.style.maxHeight = "";
+      if (needed <= available + 1) continue;
+      var lo = 1;
+      var hi = full.length;
+      var best = "…";
+      while (lo <= hi) {
+        var mid = (lo + hi) >> 1;
+        var next = full.slice(0, mid).replace(/[\s(]+$/, "") + "…";
+        el.textContent = next;
+        el.style.maxHeight = "none";
+        var height = el.getBoundingClientRect().height;
+        el.style.maxHeight = "";
+        if (height <= available + 1) {
+          best = next;
+          lo = mid + 1;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      el.textContent = best;
+    }
+  }
+
+  function fitDeadlineWindow(scroll, tableEl) {
+    if (!scroll || !tableEl) return;
+    var maxW = Math.max(160, window.innerWidth - 48);
+    var maxH = Math.max(120, Math.min(window.innerHeight * 0.85, window.innerHeight - 48));
+    var rect = tableEl.getBoundingClientRect();
+    var w = Math.ceil(rect.width);
+    var h = Math.ceil(rect.height);
+    scroll.style.width = Math.min(w, maxW) + "px";
+    scroll.style.height = Math.min(h, maxH) + "px";
+    var barX = scroll.offsetWidth - scroll.clientWidth;
+    if (barX > 0 && w + barX <= maxW) scroll.style.width = (w + barX) + "px";
+    var barY = scroll.offsetHeight - scroll.clientHeight;
+    if (barY > 0 && h + barY <= maxH) scroll.style.height = (h + barY) + "px";
+  }
+
+  function bindDeadlinePinch(scroll, onScale) {
     var query = window.matchMedia("(max-width: 1000px)");
     var table = scroll.querySelector("table");
     if (!table) return;
@@ -170,6 +229,7 @@
       if (next > 3) next = 3;
       scale = next;
       table.style.zoom = String(scale);
+      if (onScale) onScale();
     }
 
     scroll.addEventListener("touchstart", function (event) {
@@ -219,14 +279,33 @@
       tableEl = renderTable(table);
       scroll.appendChild(tableEl);
     }
-    panel.appendChild(close);
     panel.appendChild(scroll);
     overlay.appendChild(panel);
+    overlay.appendChild(close);
+    function placeClose() {
+      var panelRect = panel.getBoundingClientRect();
+      var overlayRect = overlay.getBoundingClientRect();
+      var top = panelRect.top - overlayRect.top - close.offsetHeight - 2;
+      if (top < 4) top = panelRect.top - overlayRect.top + 4;
+      close.style.top = top + "px";
+      close.style.left = (panelRect.right - overlayRect.left - close.offsetWidth) + "px";
+      close.style.right = "auto";
+    }
     overlay.addEventListener("click", function (event) {
       if (event.target === overlay) closeTable();
     });
     document.body.appendChild(overlay);
-    bindDeadlinePinch(scroll);
+    clipWeekLabels(tableEl);
+    function refit() {
+      fitDeadlineWindow(scroll, tableEl);
+      placeClose();
+    }
+    refit();
+    window.addEventListener("resize", refit);
+    overlay._deadlineUnbind = function () {
+      window.removeEventListener("resize", refit);
+    };
+    bindDeadlinePinch(scroll, refit);
     document.addEventListener("keydown", onTableKey);
     close.focus();
   }
