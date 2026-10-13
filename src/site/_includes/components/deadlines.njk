@@ -55,12 +55,34 @@
     return row;
   }
 
+  function weekBrace() {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "deadline-week-brace");
+    svg.setAttribute("viewBox", "0 0 24 100");
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("width", "12");
+    svg.setAttribute("height", "100%");
+    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute(
+      "d",
+      "M20 2 C12 2 12 2 12 18 L12 40 C12 47 12 47 6 50 C12 53 12 53 12 60 L12 82 C12 98 12 98 20 98"
+    );
+    svg.appendChild(path);
+    return svg;
+  }
+
   function renderTable(table) {
     var columns = table.columns || [];
     var rows = table.rows || [];
     var tableEl = document.createElement("table");
     var head = document.createElement("thead");
     var headRow = document.createElement("tr");
+    var weekHead = document.createElement("th");
+    weekHead.scope = "col";
+    weekHead.className = "deadline-week-head";
+    weekHead.setAttribute("aria-label", "Неделя");
+    headRow.appendChild(weekHead);
     var corner = document.createElement("th");
     corner.scope = "col";
     corner.textContent = "Дата";
@@ -74,19 +96,38 @@
     head.appendChild(headRow);
     tableEl.appendChild(head);
     var body = document.createElement("tbody");
-    for (var r = 0; r < rows.length; r++) {
-      var tr = document.createElement("tr");
-      var dateCell = document.createElement("th");
-      dateCell.scope = "row";
-      dateCell.textContent = rows[r].label;
-      tr.appendChild(dateCell);
-      for (var k = 0; k < columns.length; k++) {
-        var td = document.createElement("td");
-        var items = (rows[r].cells && rows[r].cells[columns[k]]) || [];
-        for (var s = 0; s < items.length; s++) td.appendChild(subjectLink(items[s]));
-        tr.appendChild(td);
+    var r = 0;
+    while (r < rows.length) {
+      var span = 1;
+      var week = rows[r].week;
+      while (r + span < rows.length && rows[r + span].week === week) span++;
+      for (var i = 0; i < span; i++) {
+        var tr = document.createElement("tr");
+        if (i === 0) {
+          var weekCell = document.createElement("th");
+          weekCell.scope = "rowgroup";
+          weekCell.rowSpan = span;
+          weekCell.className = "deadline-week";
+          var weekText = document.createElement("span");
+          weekText.className = "deadline-week-label";
+          weekText.textContent = rows[r].weekLabel || (week + " неделя");
+          weekCell.appendChild(weekText);
+          weekCell.appendChild(weekBrace());
+          tr.appendChild(weekCell);
+        }
+        var dateCell = document.createElement("th");
+        dateCell.scope = "row";
+        dateCell.textContent = rows[r + i].label;
+        tr.appendChild(dateCell);
+        for (var k = 0; k < columns.length; k++) {
+          var td = document.createElement("td");
+          var items = (rows[r + i].cells && rows[r + i].cells[columns[k]]) || [];
+          for (var s = 0; s < items.length; s++) td.appendChild(subjectLink(items[s]));
+          tr.appendChild(td);
+        }
+        body.appendChild(tr);
       }
-      body.appendChild(tr);
+      r += span;
     }
     tableEl.appendChild(body);
     return tableEl;

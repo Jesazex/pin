@@ -144,6 +144,7 @@ var dgDeadlinesApi = (function () {
 
   function relativePhrase(days) {
     if (days === 0) return "Сегодня";
+    if (days === 1) return "Завтра";
     return "через " + relativeSuffix(days);
   }
 
@@ -157,7 +158,8 @@ var dgDeadlinesApi = (function () {
     return String(a).localeCompare(String(b), "ru");
   }
 
-  function nearestAdjective(typeName) {
+  function nearestAdjective(typeName, count) {
+    if (count > 1) return "Ближайшие";
     if (FEMININE_TYPES[typeName]) return "Ближайшая";
     var lower = String(typeName || "").toLowerCase();
     if (/[ая]я$/i.test(lower)) return "Ближайшая";
@@ -205,7 +207,7 @@ var dgDeadlinesApi = (function () {
       var names = [];
       for (var s = 0; s < upcoming.subjects.length; s++) names.push(upcoming.subjects[s].subjectName);
       var whenText = relativePhrase(upcoming.days);
-      var adj = nearestAdjective(typeName);
+      var adj = nearestAdjective(typeName, upcoming.subjects.length);
       lines.push({
         typeName: typeName,
         adjective: adj,
@@ -233,6 +235,32 @@ var dgDeadlinesApi = (function () {
 
   function dayLabel(date) {
     return date.getDate() + " " + MONTH_NAMES[date.getMonth()];
+  }
+
+  /** Monday of the calendar week that contains `date` (Monday–Sunday). */
+  function mondayOnOrBefore(date) {
+    var day = startOfDay(date);
+    var dow = day.getDay();
+    var offset = dow === 0 ? 6 : dow - 1;
+    return new Date(day.getFullYear(), day.getMonth(), day.getDate() - offset);
+  }
+
+  /**
+   * Academic week index. Week 1 is the Monday–Sunday week that contains 1 September.
+   * A date before that Monday belongs to the previous academic year.
+   */
+  function academicWeekNumber(date) {
+    var day = startOfDay(date);
+    var year = day.getFullYear();
+    var weekStart = mondayOnOrBefore(new Date(year, 8, 1));
+    if (day < weekStart) weekStart = mondayOnOrBefore(new Date(year - 1, 8, 1));
+    var monday = mondayOnOrBefore(day);
+    var days = Math.round((calendarUTC(monday) - calendarUTC(weekStart)) / 86400000);
+    return Math.round(days / 7) + 1;
+  }
+
+  function weekLabel(week) {
+    return week + " неделя";
   }
 
   /**
@@ -273,9 +301,12 @@ var dgDeadlinesApi = (function () {
         subjects.sort(compareSubjects);
         cells[typeName] = subjects;
       }
+      var week = academicWeekNumber(cursor);
       rows.push({
         label: stored ? stored.label : dayLabel(cursor),
         time: cursor.getTime(),
+        week: week,
+        weekLabel: weekLabel(week),
         cells: cells,
       });
       cursor.setDate(cursor.getDate() + 1);
@@ -291,6 +322,7 @@ var dgDeadlinesApi = (function () {
     relativeSuffix: relativeSuffix,
     relativePhrase: relativePhrase,
     nearestAdjective: nearestAdjective,
+    academicWeekNumber: academicWeekNumber,
     buildDeadlineTable: buildDeadlineTable,
     isPastControlDate: isPastControlDate,
     markPastControlSections: markPastControlSections,

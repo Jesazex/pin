@@ -397,6 +397,53 @@ body:has(#dg-deadline-table) {
     text-align: center;
 }
 
+.deadline-table-scroll th.deadline-week-head,
+.markdown-rendered .deadline-table-scroll thead tr > th.deadline-week-head {
+    width: 1%;
+    padding: 0;
+}
+
+.deadline-table-scroll th.deadline-week,
+.markdown-rendered .deadline-table-scroll tbody tr > th.deadline-week {
+    position: relative;
+    width: 1%;
+    padding: 10px 18px 10px 8px;
+    vertical-align: middle;
+    text-align: center;
+    color: var(--text-normal, #d4d4d4);
+}
+
+.deadline-week-label {
+    display: inline-block;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    transform-origin: center;
+    white-space: nowrap;
+    letter-spacing: 0.08em;
+    line-height: 1;
+}
+
+.deadline-week-brace {
+    position: absolute;
+    top: 8px;
+    right: 3px;
+    width: 12px;
+    height: calc(100% - 16px);
+    display: block;
+    overflow: visible;
+    pointer-events: none;
+    color: var(--text-muted, #9a9a9a);
+
+    path {
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        vector-effect: non-scaling-stroke;
+    }
+}
+
 main.content > hr.dg-deadline-divider {
     border: 0;
     border-top: 2px solid color-mix(in srgb, var(--text-normal, #c8c8c8) 55%, transparent);
