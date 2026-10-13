@@ -282,6 +282,7 @@ button.deadline-table-open {
 }
 
 .deadline-table-panel {
+    position: relative;
     display: flex;
     flex-direction: column;
     width: min(960px, 100%);
@@ -314,9 +315,10 @@ button.deadline-table-close:focus-visible,
 button.deadline-table-close:active,
 button.deadline-table-close.mobile-tap {
     position: absolute;
-    top: 50%;
-    right: 14px;
-    transform: translateY(-50%);
+    top: 6px;
+    right: 10px;
+    z-index: 6;
+    transform: none;
     border: 0;
     background: transparent;
     background-color: transparent;
@@ -341,14 +343,6 @@ body:has(#dg-deadline-table) {
     overflow: hidden;
 }
 
-.deadline-table-pin {
-    flex: 0 0 auto;
-    overflow: hidden;
-    scrollbar-gutter: stable;
-    padding: 0 8px;
-    background: var(--background-primary, #1e232f);
-}
-
 .deadline-table-scroll {
     flex: 1 1 auto;
     min-height: 0;
@@ -370,17 +364,13 @@ body:has(#dg-deadline-table) {
     color: var(--text-muted);
 }
 
-.deadline-table-scroll table,
-.deadline-table-pin table {
+.deadline-table-scroll table {
     margin: 0;
+    margin-block: 0;
     border-collapse: separate;
     border-spacing: 0;
     width: max-content;
     background: var(--background-primary, #1e232f);
-}
-
-.deadline-table-scroll thead.deadline-thead-hidden {
-    display: none;
 }
 
 .markdown-rendered .deadline-table-scroll thead tr,
@@ -395,13 +385,10 @@ body:has(#dg-deadline-table) {
 
 .deadline-table-scroll th,
 .deadline-table-scroll td,
-.deadline-table-pin th,
 .markdown-rendered .deadline-table-scroll thead tr > th,
 .markdown-rendered .deadline-table-scroll tbody tr > td,
-.markdown-rendered .deadline-table-pin thead tr > th,
 .markdown-rendered .deadline-table-scroll thead tr > th:nth-child(2n + 2),
-.markdown-rendered .deadline-table-scroll tbody tr > td:nth-child(2n + 2),
-.markdown-rendered .deadline-table-pin thead tr > th:nth-child(2n + 2) {
+.markdown-rendered .deadline-table-scroll tbody tr > td:nth-child(2n + 2) {
     box-sizing: border-box;
     border: 1px solid var(--background-modifier-border, rgba(128, 128, 128, 0.35));
     padding: 8px 10px;
@@ -413,13 +400,20 @@ body:has(#dg-deadline-table) {
     background-color: var(--background-primary, #1e232f);
 }
 
+.deadline-table-scroll thead th,
+.markdown-rendered .deadline-table-scroll thead tr > th {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+}
+
 .deadline-table-scroll td .deadline-subject {
     display: block;
     text-align: center;
 }
 
-.deadline-table-pin th.deadline-week-head,
-.markdown-rendered .deadline-table-pin thead tr > th.deadline-week-head {
+.deadline-table-scroll thead th.deadline-week-head,
+.markdown-rendered .deadline-table-scroll thead tr > th.deadline-week-head {
     border: none;
     background: var(--background-primary, #1e232f);
     background-color: var(--background-primary, #1e232f);
@@ -437,21 +431,39 @@ body:has(#dg-deadline-table) {
     color: var(--text-normal, #d4d4d4);
 }
 
-.deadline-table-scroll tr.deadline-week-gap,
-.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-gap,
-.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-gap:nth-child(odd),
-.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-gap:hover {
-    background: var(--background-primary, #202020);
-    background-color: var(--background-primary, #202020);
+.deadline-table-scroll tr.deadline-week-end > th,
+.deadline-table-scroll tr.deadline-week-end > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-end > th,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-end > td {
+    border-bottom-width: 0;
 }
 
-.deadline-table-scroll tr.deadline-week-gap > td,
-.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-gap > td {
-    height: 10px;
+.deadline-table-scroll tr.deadline-week-rule,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule:nth-child(odd),
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule:hover {
+    background: transparent;
+    background-color: transparent;
+}
+
+.deadline-table-scroll tr.deadline-week-rule > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule:nth-child(odd) > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule:hover > td {
+    height: 4px;
     padding: 0;
-    border: none;
-    background: var(--background-primary, #202020);
-    background-color: var(--background-primary, #202020);
+    border: 0;
+    line-height: 0;
+    font-size: 0;
+    background: var(--background-modifier-border, rgb(30, 35, 47));
+    background-color: var(--background-modifier-border, rgb(30, 35, 47));
+}
+
+.deadline-table-scroll tr.deadline-week-rule + tr > th,
+.deadline-table-scroll tr.deadline-week-rule + tr > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule + tr > th,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule + tr > td {
+    border-top-width: 0;
 }
 
 .deadline-week-label {

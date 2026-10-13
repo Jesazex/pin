@@ -124,15 +124,16 @@
           for (var s = 0; s < items.length; s++) td.appendChild(subjectLink(items[s]));
           tr.appendChild(td);
         }
+        if (i === span - 1 && r + span < rows.length) tr.className = "deadline-week-end";
         body.appendChild(tr);
       }
       if (r + span < rows.length) {
-        var gap = document.createElement("tr");
-        gap.className = "deadline-week-gap";
-        var gapCell = document.createElement("td");
-        gapCell.colSpan = columns.length + 2;
-        gap.appendChild(gapCell);
-        body.appendChild(gap);
+        var rule = document.createElement("tr");
+        rule.className = "deadline-week-rule";
+        var ruleCell = document.createElement("td");
+        ruleCell.colSpan = columns.length + 2;
+        rule.appendChild(ruleCell);
+        body.appendChild(rule);
       }
       r += span;
     }
@@ -142,11 +143,7 @@
 
   function closeTable() {
     var overlay = document.getElementById("dg-deadline-table");
-    if (overlay) {
-      var scroll = overlay.querySelector(".deadline-table-scroll");
-      if (scroll && scroll._deadlineUnpin) scroll._deadlineUnpin();
-      overlay.remove();
-    }
+    if (overlay) overlay.remove();
     document.removeEventListener("keydown", onTableKey);
   }
 
@@ -161,7 +158,6 @@
     var scale = 1;
     var startDist = 0;
     var startScale = 1;
-    var pinTable = scroll.previousElementSibling && scroll.previousElementSibling.querySelector("table");
 
     function distance(touches) {
       var dx = touches[0].clientX - touches[1].clientX;
@@ -174,7 +170,6 @@
       if (next > 3) next = 3;
       scale = next;
       table.style.zoom = String(scale);
-      if (pinTable) pinTable.style.zoom = String(scale);
     }
 
     scroll.addEventListener("touchstart", function (event) {
@@ -197,55 +192,6 @@
     scroll.addEventListener("touchcancel", endPinch);
   }
 
-  function pinColumnHeader(panel, scroll, tableEl) {
-    var pin = document.createElement("div");
-    pin.className = "deadline-table-pin";
-    var pinTable = document.createElement("table");
-    pinTable.className = "deadline-grid";
-    pinTable.appendChild(tableEl.tHead.cloneNode(true));
-    pin.appendChild(pinTable);
-    panel.insertBefore(pin, scroll);
-    tableEl.className = "deadline-grid";
-
-    var src = tableEl.tHead.rows[0].cells;
-    var dst = pinTable.tHead.rows[0].cells;
-    var widths = [];
-    var total = 0;
-    var i;
-    for (i = 0; i < src.length; i++) {
-      var width = src[i].getBoundingClientRect().width;
-      widths.push(width);
-      total += width;
-      dst[i].style.boxSizing = "border-box";
-      dst[i].style.width = width + "px";
-      dst[i].style.minWidth = width + "px";
-      dst[i].style.maxWidth = width + "px";
-    }
-    var cols = document.createElement("colgroup");
-    for (i = 0; i < widths.length; i++) {
-      var col = document.createElement("col");
-      col.style.width = widths[i] + "px";
-      cols.appendChild(col);
-    }
-    tableEl.style.tableLayout = "fixed";
-    tableEl.style.width = total + "px";
-    tableEl.insertBefore(cols, tableEl.firstChild);
-    pinTable.style.tableLayout = "fixed";
-    pinTable.style.width = total + "px";
-    tableEl.tHead.className = "deadline-thead-hidden";
-    tableEl.tHead.setAttribute("aria-hidden", "true");
-
-    function syncShift() {
-      pinTable.style.transform = "translateX(" + (-scroll.scrollLeft) + "px)";
-    }
-    scroll.addEventListener("scroll", syncShift);
-    window.addEventListener("resize", syncShift);
-    scroll._deadlineUnpin = function () {
-      window.removeEventListener("resize", syncShift);
-    };
-    syncShift();
-  }
-
   function openTable(table) {
     closeTable();
     var overlay = document.createElement("div");
@@ -255,19 +201,12 @@
     panel.className = "deadline-table-panel";
     panel.setAttribute("role", "dialog");
     panel.setAttribute("aria-label", "Таблица дедлайнов");
-    var header = document.createElement("div");
-    header.className = "deadline-table-header";
-    var title = document.createElement("span");
-    title.className = "deadline-table-title";
-    title.textContent = "Таблица дедлайнов";
     var close = document.createElement("button");
     close.type = "button";
     close.className = "deadline-table-close";
     close.setAttribute("aria-label", "Закрыть");
     close.textContent = "×";
     close.addEventListener("click", closeTable);
-    header.appendChild(title);
-    header.appendChild(close);
     var scroll = document.createElement("div");
     scroll.className = "deadline-table-scroll";
     var tableEl = null;
@@ -280,14 +219,13 @@
       tableEl = renderTable(table);
       scroll.appendChild(tableEl);
     }
-    panel.appendChild(header);
+    panel.appendChild(close);
     panel.appendChild(scroll);
     overlay.appendChild(panel);
     overlay.addEventListener("click", function (event) {
       if (event.target === overlay) closeTable();
     });
     document.body.appendChild(overlay);
-    if (tableEl) pinColumnHeader(panel, scroll, tableEl);
     bindDeadlinePinch(scroll);
     document.addEventListener("keydown", onTableKey);
     close.focus();
