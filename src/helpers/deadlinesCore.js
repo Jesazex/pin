@@ -160,29 +160,47 @@ var dgDeadlinesApi = (function () {
     return "Ближайшее";
   }
 
+  function detailFor(subjects, days) {
+    var names = [];
+    for (var s = 0; s < subjects.length; s++) names.push(subjects[s].subjectName);
+    var whenText = relativePhrase(days);
+    return {
+      subjects: subjects,
+      whenText: whenText,
+      linkText: names.join(", ") + " - " + whenText,
+      days: days,
+    };
+  }
+
   function upcomingItems(items, today0) {
     var bestDays = null;
-    var subjects = [];
+    var grouped = {};
     for (var j = 0; j < items.length; j++) {
       var candidate = items[j];
       var when = resolveUpcomingDate(candidate.day, candidate.month, today0);
       var days = daysUntil(when, today0);
       if (days < 0) continue;
-      var subject = { subjectName: candidate.subjectName, href: candidate.href };
-      if (bestDays === null || days < bestDays) {
-        bestDays = days;
-        subjects = [subject];
-      } else if (days === bestDays) {
-        subjects.push(subject);
-      }
+      var key = String(days);
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push({ subjectName: candidate.subjectName, href: candidate.href });
+      if (bestDays === null || days < bestDays) bestDays = days;
     }
+    if (bestDays === null) return { days: null, subjects: [], tomorrow: null };
+    var subjects = grouped[String(bestDays)];
     subjects.sort(compareSubjects);
-    return { days: bestDays, subjects: subjects };
+    var tomorrow = null;
+    if (bestDays === 0 && grouped["1"]) {
+      tomorrow = grouped["1"];
+      tomorrow.sort(compareSubjects);
+    }
+    return { days: bestDays, subjects: subjects, tomorrow: tomorrow };
   }
 
   /**
    * Soonest upcoming date per control type.
    * Every subject that shares that date is listed. No calendar date in the text.
+   * When that date is today and the same type is also due tomorrow, tomorrow
+   * is attached as a second line. Any other gap stays on the nearest day only.
    */
   function pickControlDeadlines(candidates, today) {
     var today0 = today || moscowToday();
@@ -198,20 +216,22 @@ var dgDeadlinesApi = (function () {
     byType.forEach(function (items, typeName) {
       var upcoming = upcomingItems(items, today0);
       if (upcoming.days === null || !upcoming.subjects.length) return;
-      var names = [];
-      for (var s = 0; s < upcoming.subjects.length; s++) names.push(upcoming.subjects[s].subjectName);
-      var whenText = relativePhrase(upcoming.days);
+      var detail = detailFor(upcoming.subjects, upcoming.days);
       var adj = nearestAdjective(typeName, upcoming.subjects.length);
-      lines.push({
+      var line = {
         typeName: typeName,
         adjective: adj,
         label: adj + " " + typeName + ":",
-        subjects: upcoming.subjects,
-        whenText: whenText,
-        linkText: names.join(", ") + " - " + whenText,
+        subjects: detail.subjects,
+        whenText: detail.whenText,
+        linkText: detail.linkText,
         href: upcoming.subjects[0].href,
         days: upcoming.days,
-      });
+      };
+      if (upcoming.tomorrow && upcoming.tomorrow.length) {
+        line.tomorrow = detailFor(upcoming.tomorrow, 1);
+      }
+      lines.push(line);
     });
 
     lines.sort(function (a, b) {

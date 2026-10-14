@@ -11,6 +11,14 @@
       {%- endfor -%}
       <span class="deadline-when"> - {{ line.whenText }}</span>
     </span>
+    {%- if line.tomorrow and line.tomorrow.subjects.length -%}
+    <span class="deadline-detail">
+      {%- for subject in line.tomorrow.subjects -%}
+      <a class="deadline-subject" href="{{ subject.href }}">{{ subject.subjectName }}</a>{%- if not loop.last -%}, {% endif %}
+      {%- endfor -%}
+      <span class="deadline-when"> - {{ line.tomorrow.whenText }}</span>
+    </span>
+    {%- endif -%}
   </div>
   {%- endfor -%}
   <button type="button" class="deadline-table-open">Таблица дедлайнов</button>
@@ -33,25 +41,32 @@
     return link;
   }
 
+  function appendDetail(row, subjects, whenText) {
+    var detail = document.createElement("span");
+    detail.className = "deadline-detail";
+    var list = subjects || [];
+    for (var i = 0; i < list.length; i++) {
+      if (i > 0) detail.appendChild(document.createTextNode(", "));
+      detail.appendChild(subjectLink(list[i]));
+    }
+    var when = document.createElement("span");
+    when.className = "deadline-when";
+    when.textContent = " - " + (whenText || "");
+    detail.appendChild(when);
+    row.appendChild(detail);
+  }
+
   function renderLine(line) {
     var row = document.createElement("div");
     row.className = "deadline-line";
     var label = document.createElement("span");
     label.className = "deadline-label";
     label.textContent = line.label;
-    var detail = document.createElement("span");
-    detail.className = "deadline-detail";
-    var subjects = line.subjects || [];
-    for (var i = 0; i < subjects.length; i++) {
-      if (i > 0) detail.appendChild(document.createTextNode(", "));
-      detail.appendChild(subjectLink(subjects[i]));
-    }
-    var when = document.createElement("span");
-    when.className = "deadline-when";
-    when.textContent = " - " + (line.whenText || "");
-    detail.appendChild(when);
     row.appendChild(label);
-    row.appendChild(detail);
+    appendDetail(row, line.subjects, line.whenText);
+    if (line.tomorrow && line.tomorrow.subjects && line.tomorrow.subjects.length) {
+      appendDetail(row, line.tomorrow.subjects, line.tomorrow.whenText);
+    }
     return row;
   }
 
