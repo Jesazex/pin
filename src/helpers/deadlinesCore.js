@@ -70,22 +70,41 @@ var dgDeadlinesApi = (function () {
     };
   }
 
+  /** A heading further out than this already belongs to the previous cycle. */
+  var HORIZON_MONTHS = 6;
+
+  function addMonths(date, months) {
+    var day = date.getDate();
+    var shifted = new Date(date.getFullYear(), date.getMonth() + months, day);
+    if (shifted.getDate() !== day) {
+      shifted = new Date(date.getFullYear(), date.getMonth() + months + 1, 0);
+    }
+    return startOfDay(shifted);
+  }
+
   function resolveUpcomingDate(day, month, today) {
     var today0 = startOfDay(today || moscowToday());
     var candidate = new Date(today0.getFullYear(), month, day);
     if (candidate < today0) {
       candidate = new Date(today0.getFullYear() + 1, month, day);
     }
+    // Half a year is the furthest a control date is still ahead. Beyond that
+    // the next occurrence is a new cycle, so this heading already passed.
+    if (candidate > addMonths(today0, HORIZON_MONTHS)) {
+      return new Date(candidate.getFullYear() - 1, month, day);
+    }
     return candidate;
   }
 
-  /** True when a «На <день> <месяц>» heading is strictly before Moscow today. */
+  /**
+   * True when a «На <день> <месяц>» heading is already over:
+   * before Moscow today, or more than half a year ahead.
+   */
   function isPastControlDate(headingText, today) {
     var parsed = parseDateHeading(typeof headingText === "string" ? headingText : "");
     if (!parsed) return false;
     var today0 = startOfDay(today || moscowToday());
-    var candidate = new Date(today0.getFullYear(), parsed.month, parsed.day);
-    return candidate < today0;
+    return resolveUpcomingDate(parsed.day, parsed.month, today0) < today0;
   }
 
   /**
@@ -280,12 +299,12 @@ var dgDeadlinesApi = (function () {
 
   /**
    * One row per calendar day from today through the latest heading still ahead,
-   * including days with no deadlines. Columns are ordered by the soonest
-   * upcoming deadline, then by name.
+   * including days with no deadlines. Nothing beyond half a year is included:
+   * that date has already passed. Columns are ordered by the soonest upcoming
+   * deadline, then by name.
    */
   function buildDeadlineTable(candidates, today) {
     var today0 = startOfDay(today || moscowToday());
-    var year = today0.getFullYear();
     var typeSet = {};
     var nearestTime = {};
     var groups = new Map();
@@ -293,7 +312,7 @@ var dgDeadlinesApi = (function () {
     var list = candidates || [];
     for (var i = 0; i < list.length; i++) {
       var item = list[i];
-      var when = new Date(year, item.month, item.day);
+      var when = resolveUpcomingDate(item.day, item.month, today0);
       if (when < today0) continue;
       typeSet[item.typeName] = true;
       if (nearestTime[item.typeName] == null || when.getTime() < nearestTime[item.typeName]) {
