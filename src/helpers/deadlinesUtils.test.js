@@ -213,6 +213,46 @@ describe("deadlinesUtils", () => {
     expect(lines[0].label).toBe("Ближайшие ДЗ:");
     expect(lines[0].linkText).toBe("Информатика, Физика - через 3 дня");
     expect(lines[0].subjects.map((item) => item.href)).toEqual(["/infa#a", "/fizika#a"]);
+    expect(lines[0].tomorrow).toBeUndefined();
+  });
+
+  it("adds tomorrow under the same type when today is also due", () => {
+    const today = new Date(2026, 9, 14);
+    const lines = pickControlDeadlines(
+      [
+        { typeName: "ДЗ", subjectName: "Линал", day: 14, month: 9, displayDate: "14 октября", href: "/dz-linal#today" },
+        { typeName: "ДЗ", subjectName: "Матан", day: 14, month: 9, displayDate: "14 октября", href: "/dz-matan#today" },
+        { typeName: "ДЗ", subjectName: "Матан", day: 15, month: 9, displayDate: "15 октября", href: "/dz-matan#tmr" },
+        { typeName: "ДЗ", subjectName: "Физика", day: 15, month: 9, displayDate: "15 октября", href: "/dz-fiz#tmr" },
+        { typeName: "ДЗ", subjectName: "Физика", day: 20, month: 9, displayDate: "20 октября", href: "/dz-fiz#later" },
+        { typeName: "ЛР", subjectName: "Информатика", day: 14, month: 9, displayDate: "14 октября", href: "/lr#today" },
+        { typeName: "КР", subjectName: "Матан", day: 16, month: 9, displayDate: "16 октября", href: "/kr#later" },
+      ],
+      today
+    );
+    const dz = lines.find((line) => line.typeName === "ДЗ");
+    expect(dz.label).toBe("Ближайшие ДЗ:");
+    expect(dz.linkText).toBe("Линал, Матан - Сегодня");
+    expect(dz.tomorrow.linkText).toBe("Матан, Физика - Завтра");
+    expect(dz.tomorrow.whenText).toBe("Завтра");
+    expect(dz.tomorrow.subjects.map((item) => item.href)).toEqual([
+      "/dz-matan#tmr",
+      "/dz-fiz#tmr",
+    ]);
+    expect(lines.find((line) => line.typeName === "ЛР").tomorrow).toBeUndefined();
+    expect(lines.find((line) => line.typeName === "КР").linkText).toBe("Матан - через 2 дня");
+    expect(lines.find((line) => line.typeName === "КР").tomorrow).toBeUndefined();
+  });
+
+  it("keeps a tomorrow-only deadline as the single nearest line", () => {
+    const today = new Date(2026, 9, 14);
+    const lines = pickControlDeadlines(
+      [{ typeName: "ДЗ", subjectName: "Физика", day: 15, month: 9, displayDate: "15 октября", href: "/dz#tmr" }],
+      today
+    );
+    expect(lines).toHaveLength(1);
+    expect(lines[0].linkText).toBe("Физика - Завтра");
+    expect(lines[0].tomorrow).toBeUndefined();
   });
 
   it("builds a row for every day from today through the last recorded date", () => {
