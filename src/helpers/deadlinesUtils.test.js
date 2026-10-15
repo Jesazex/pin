@@ -34,10 +34,15 @@ describe("deadlinesUtils", () => {
     expect(parseDateHeading("Тема без даты")).toBeNull();
   });
 
-  it("rolls past dates into next year", () => {
+  it("rolls a past date into next year only within half a year", () => {
     const today = new Date(2026, 8, 27); // 27 Sep 2026
-    const past = resolveUpcomingDate(15, 8, today); // 15 Sep
-    expect(past.getFullYear()).toBe(2027);
+    const september = resolveUpcomingDate(15, 8, today); // 15 Sep, next year is too far
+    expect(september.getFullYear()).toBe(2026);
+    expect(september.getMonth()).toBe(8);
+    expect(daysUntil(september, today)).toBeLessThan(0);
+    const march = resolveUpcomingDate(15, 2, today); // 15 Mar 2027, inside the horizon
+    expect(march.getFullYear()).toBe(2027);
+    expect(march.getMonth()).toBe(2);
     const future = resolveUpcomingDate(28, 8, today);
     expect(future.getFullYear()).toBe(2026);
     expect(daysUntil(future, today)).toBe(1);
@@ -72,7 +77,7 @@ describe("deadlinesUtils", () => {
     expect(nearestAdjective("ЛР", 1)).toBe("Ближайшая");
   });
 
-  it("treats a control date as past only before Moscow today", () => {
+  it("treats a control date as past before Moscow today or beyond half a year", () => {
     const today = new Date(2026, 8, 30);
     expect(isPastControlDate("На 25 Сентября", today)).toBe(true);
     expect(isPastControlDate("На 30 Сентября", today)).toBe(false);
@@ -81,6 +86,17 @@ describe("deadlinesUtils", () => {
     const moscowSep30 = moscowToday(new Date(Date.UTC(2026, 8, 29, 22, 0, 0)));
     expect(isPastControlDate("На 29 Сентября", moscowSep30)).toBe(true);
     expect(isPastControlDate("На 30 сентября", moscowSep30)).toBe(false);
+
+    const oct15 = new Date(2026, 9, 15);
+    expect(isPastControlDate("На 15 апреля", oct15)).toBe(false);
+    expect(resolveUpcomingDate(15, 3, oct15).getFullYear()).toBe(2027);
+    expect(isPastControlDate("На 16 апреля", oct15)).toBe(true);
+    expect(daysUntil(resolveUpcomingDate(16, 3, oct15), oct15)).toBeLessThan(0);
+    expect(isPastControlDate("На 15 сентября", oct15)).toBe(true);
+
+    const jan15 = new Date(2027, 0, 15);
+    expect(isPastControlDate("На 15 июля", jan15)).toBe(false);
+    expect(isPastControlDate("На 16 июля", jan15)).toBe(true);
   });
 
   it("dims a passed heading and the text under it, not the following date", () => {
@@ -335,6 +351,39 @@ describe("deadlinesUtils", () => {
     expect(academicWeekNumber(new Date(2025, 8, 1))).toBe(1);
   });
 
+  it("shows dates at most half a year ahead and drops the rest as passed", () => {
+    const today = new Date(2026, 9, 15);
+    const lines = pickControlDeadlines(
+      [
+        { typeName: "ДЗ", subjectName: "Матан", day: 15, month: 3, displayDate: "15 апреля", href: "/april" },
+        { typeName: "ДЗ", subjectName: "Физика", day: 16, month: 3, displayDate: "16 апреля", href: "/late" },
+        { typeName: "ЛР", subjectName: "Физика", day: 29, month: 8, displayDate: "29 сентября", href: "/sep" },
+      ],
+      today
+    );
+    expect(lines).toHaveLength(1);
+    expect(lines[0].typeName).toBe("ДЗ");
+    expect(lines[0].subjects.map((item) => item.subjectName)).toEqual(["Матан"]);
+    expect(lines[0].days).toBe(daysUntil(new Date(2027, 3, 15), today));
+    expect(lines[0].tomorrow).toBeUndefined();
+
+    const table = buildDeadlineTable(
+      [
+        { typeName: "ДЗ", subjectName: "Матан", day: 15, month: 3, displayDate: "15 апреля", href: "/april" },
+        { typeName: "ЛР", subjectName: "Физика", day: 16, month: 3, displayDate: "16 апреля", href: "/late" },
+        { typeName: "БДЗ", subjectName: "Физика", day: 18, month: 11, displayDate: "18 декабря", href: "/dec" },
+      ],
+      today
+    );
+    expect(table.columns).toEqual(["БДЗ", "ДЗ"]);
+    expect(table.rows[0].label).toBe("15 октября");
+    expect(table.rows.at(-1).label).toBe("15 апреля");
+    expect(table.rows).toHaveLength(lines[0].days + 1);
+    expect(table.rows.at(-1).cells["ДЗ"].map((item) => item.subjectName)).toEqual(["Матан"]);
+    const december = table.rows.find((row) => row.label === "18 декабря");
+    expect(december.cells["БДЗ"].map((item) => item.subjectName)).toEqual(["Физика"]);
+  });
+
   it("runs the inlined browser bundle without Node globals", () => {
     const source = fs.readFileSync(path.join(here, "deadlinesCore.js"), "utf8");
     const clientSource = source.replace(/\nif \(typeof module === "object"[\s\S]*$/, "\n");
@@ -346,6 +395,9 @@ describe("deadlinesUtils", () => {
       today
     );
     expect(lines[0].linkText).toBe("Физика - Сегодня");
+    const jan15 = new Date(2027, 0, 15);
+    expect(sandbox.dgDeadlinesApi.isPastControlDate("На 16 июля", jan15)).toBe(true);
+    expect(sandbox.dgDeadlinesApi.isPastControlDate("На 15 июля", jan15)).toBe(false);
     expect(sandbox.module).toBeUndefined();
   });
 });
