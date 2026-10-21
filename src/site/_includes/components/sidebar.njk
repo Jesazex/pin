@@ -1,0 +1,116 @@
+<aside>
+      <div class="page-panel-backdrop" data-page-panel-close></div>
+      <div class="sidebar" id="page-panel">
+            <div class="panel-resizer panel-resizer-right" data-panel-resize="right" role="separator" aria-orientation="vertical" aria-label="Изменить ширину оглавления" tabindex="0"></div>
+            <div class="page-panel-header">
+                  <span class="page-panel-handle" aria-hidden="true"></span>
+                  <button type="button" class="page-panel-close" data-page-panel-close aria-label="{{ meta.uiStrings.pagePanelClose }}">
+                        <i data-lucide="x"></i>
+                  </button>
+            </div>
+            <div class="sidebar-container">
+                  {% set slotName = "sidebar.top" %}{% include "components/pluginSlot.njk" %}
+                  {% for imp in dynamics.sidebar.top %}
+                        {% include imp %}
+                  {% endfor %}
+                  {%if settings.dgShowToc === true%}
+                        {%set tocHtml= (content and (content | hideDataview | link | tocMarkup)) %}
+                        {%if tocHtml or dgDayPage %}
+                              <div class="toc">
+                                    <div class="toc-title-container">
+                                          <div class="toc-title">
+                                                {% if navTitle %}{{ navTitle }}{% elif title %}{{ title }}{% else %}{{ page.fileSlug }}{% endif %}
+                                          </div>
+                                    </div>
+                                    <div class="toc-container">
+                                          {{ tocHtml | safe }}
+                                    </div>
+                              </div>
+                              <script>
+                                    (function() {
+                                          let onScroll = null;
+
+                                          function bindTocSpy() {
+                                                const tocLinks = document.querySelectorAll('.toc-container a[href^="#"]');
+                                                if (!tocLinks.length) return;
+
+                                                const headings = Array.from(tocLinks).map(link => {
+                                                      const id = decodeURIComponent(link.getAttribute('href').slice(1));
+                                                      return { link, target: document.getElementById(id) };
+                                                }).filter(h => h.target);
+
+                                                if (onScroll) window.removeEventListener('scroll', onScroll);
+                                                onScroll = function updateActive() {
+                                                      // Do not default to the first heading — at page top nothing is active.
+                                                      let current = null;
+                                                      for (const h of headings) {
+                                                            if (h.target.getBoundingClientRect().top <= 100) {
+                                                                  current = h;
+                                                            }
+                                                      }
+                                                      // Keep the first item unhighlighted until the user has scrolled.
+                                                      if (current === headings[0] && window.scrollY < 80) {
+                                                            current = null;
+                                                      }
+                                                      tocLinks.forEach(l => l.classList.remove('toc-active'));
+                                                      if (current) current.link.classList.add('toc-active');
+                                                };
+
+                                                window.addEventListener('scroll', onScroll, { passive: true });
+                                                onScroll();
+                                          }
+
+                                          bindTocSpy();
+                                          document.addEventListener('dg-toc-refresh', bindTocSpy);
+                                    })();
+                              </script>
+                        {%endif%}
+
+                  {%endif%}
+                  {% set slotName = "sidebar.bottom" %}{% include "components/pluginSlot.njk" %}
+                  {% for imp in dynamics.sidebar.bottom %}
+                        {% include imp %}
+                  {% endfor %}
+            </div>
+      </div>
+      <script>
+            (function () {
+                  const panel = document.getElementById('page-panel');
+                  if (!panel) return;
+                  const mobile = window.matchMedia('(max-width: 1400px)');
+
+                  function setOpen(open) {
+                        panel.classList.toggle('is-open', open);
+                        document.body.classList.toggle('page-panel-open', open);
+                        document.querySelectorAll('.page-panel-toggle').forEach(btn => {
+                              btn.setAttribute('aria-expanded', String(open));
+                        });
+                        document.dispatchEvent(new CustomEvent(open ? 'page-panel:open' : 'page-panel:close'));
+                  }
+
+                  document.addEventListener('click', evt => {
+                        if (evt.target.closest('.page-panel-toggle')) {
+                              setOpen(!panel.classList.contains('is-open'));
+                              return;
+                        }
+                        if (evt.target.closest('[data-page-panel-close]')) {
+                              setOpen(false);
+                              return;
+                        }
+                        // Following a TOC entry should reveal the target, not the sheet
+                        if (mobile.matches && evt.target.closest('#page-panel a[href]')) {
+                              setOpen(false);
+                        }
+                  });
+
+                  document.addEventListener('keydown', evt => {
+                        if (evt.key === 'Escape' && panel.classList.contains('is-open')) setOpen(false);
+                  });
+
+                  // Leaving the mobile breakpoint restores the normal sidebar
+                  mobile.addEventListener('change', evt => {
+                        if (!evt.matches) setOpen(false);
+                  });
+            })();
+      </script>
+</aside>

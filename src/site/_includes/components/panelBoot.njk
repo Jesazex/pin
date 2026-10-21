@@ -1,0 +1,79 @@
+{#- Apply pinned panel state on <html> before first paint to avoid open→close flash. -#}
+<script>
+(function () {
+      var LEFT_KEY = 'dg-left-panel-collapsed';
+      var RIGHT_KEY = 'dg-right-panel-collapsed';
+      var LEFT_WIDTH_KEY = 'dg-left-panel-width';
+      var RIGHT_WIDTH_KEY = 'dg-right-panel-width';
+      var html = document.documentElement;
+
+      // Keep the article at least a quarter of the viewport when panels are open.
+      function centerWidth(leftW, rightW, leftCollapsed, rightCollapsed, vw) {
+            if (vw <= 1000) {
+                  return vw - (leftCollapsed ? 0 : leftW) - (rightCollapsed ? 0 : rightW);
+            }
+            var marginLeft = leftCollapsed ? 48 : leftW + (vw <= 1400 ? 16 : 24);
+            var marginRight;
+            if (rightCollapsed) marginRight = 48;
+            else if (vw <= 1400) marginRight = Math.max(20, rightW);
+            else marginRight = rightW + 24;
+            // Body padding (--file-margins) and the stable scrollbar gutter sit
+            // outside the article margins, so they narrow the column too.
+            var extra = 32 + 32 + 15;
+            return vw - marginLeft - marginRight - extra;
+      }
+
+      function clampBasic(raw, min, cap) {
+            var n = parseInt(raw, 10);
+            if (!n || n !== n) return 0;
+            if (n < min) n = min;
+            if (n > cap) n = cap;
+            return n;
+      }
+
+      function fitOpenWidths(left, right, leftCollapsed, rightCollapsed, vw) {
+            var min = Math.min(180, Math.min(640, Math.max(180, Math.floor(vw * 0.85))));
+            var floor = vw * 0.25;
+            var guard = 0;
+            while (centerWidth(left, right, leftCollapsed, rightCollapsed, vw) < floor && guard < 4000) {
+                  var canLeft = !leftCollapsed && left > min;
+                  var canRight = !rightCollapsed && right > min;
+                  if (!canLeft && !canRight) break;
+                  if (canLeft && (!canRight || left >= right)) left -= 1;
+                  else right -= 1;
+                  guard += 1;
+            }
+            return { left: left, right: right };
+      }
+
+      try {
+            var compact = window.matchMedia('(max-width: 1000px)').matches;
+            var leftRaw = sessionStorage.getItem(LEFT_KEY);
+            var rightRaw = sessionStorage.getItem(RIGHT_KEY);
+            var leftCollapsed = leftRaw !== '0';
+            var rightCollapsed = rightRaw !== '0';
+            // Mobile: only one panel open at a time.
+            if (compact && !leftCollapsed && !rightCollapsed) {
+                  rightCollapsed = true;
+            }
+            var cap0 = Math.min(640, Math.max(180, Math.floor(window.innerWidth * 0.85)));
+            var min0 = Math.min(180, cap0);
+            var leftWidth = clampBasic(localStorage.getItem(LEFT_WIDTH_KEY), min0, cap0);
+            var rightWidth = clampBasic(localStorage.getItem(RIGHT_WIDTH_KEY), min0, cap0);
+            if (leftWidth || rightWidth) {
+                  var fitted = fitOpenWidths(leftWidth || 250, rightWidth || 350, leftCollapsed, rightCollapsed, window.innerWidth);
+                  if (leftWidth) leftWidth = leftCollapsed ? leftWidth : fitted.left;
+                  if (rightWidth) rightWidth = rightCollapsed ? rightWidth : fitted.right;
+            }
+            if (leftWidth) html.style.setProperty('--dg-panel-left-width', leftWidth + 'px');
+            if (rightWidth) html.style.setProperty('--dg-panel-right-width', rightWidth + 'px');
+            html.classList.toggle('left-panel-collapsed', leftCollapsed);
+            html.classList.toggle('right-panel-collapsed', rightCollapsed);
+            html.classList.toggle('compact-panels', compact);
+      } catch (e) {
+            html.classList.add('left-panel-collapsed', 'right-panel-collapsed');
+      }
+      html.classList.add('dg-panel-boot');
+      html.classList.add('dg-math-pending');
+})();
+</script>

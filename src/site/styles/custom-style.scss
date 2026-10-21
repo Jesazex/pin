@@ -1,0 +1,1529 @@
+// Shared layout for desktop + phone: edge-flush panels, centered title,
+// open-file highlight, collapsible sidebars. Compact viewports keep the same
+// chrome but overlay/collapse panels so page width equals the device width.
+
+body {
+    --dg-sidebar-top: 0;
+    --dg-sidebar-container-height: 100%;
+    --dg-toc-max-height: none;
+    --dg-filetree-gap: 24px;
+    --dg-sidebar-gap: 24px;
+    // Drag-resize overrides (set on <html> from saved widths). Fall back to
+    // the layout defaults, including the compact widths set below.
+    --dg-panel-left: var(--dg-panel-left-width, var(--dg-filetree-width));
+    --dg-panel-right: var(--dg-panel-right-width, var(--dg-sidebar-max-width));
+    --dg-sidebar-container-padding: 0;
+    --dg-filetree-padding: 10px 12px 10px 8px;
+    --dg-content-max-width: 100%;
+    --dg-content-padding-top: 36px;
+    --dg-content-padding-top-mobile: 28px;
+    --dg-compact-panel-width: min(250px, 85vw);
+    // Tighter nest indent so deep folders fit the side menu.
+    --dg-inner-folder-margin: 6px;
+    --dg-filelist-margin: 4px;
+    --dg-folder-margin: 2px 0;
+    --dg-notelink-padding: 3px 6px 3px 8px;
+}
+
+html,
+body {
+    max-width: 100%;
+    overflow-x: clip;
+}
+
+html.dg-page-fits {
+    overflow-y: hidden;
+}
+
+// Words inside formulas are redrawn in the page font. Hide the loose
+// fallback glyphs until that spacing is applied.
+html.dg-math-pending g[data-mml-node="mtext"] {
+    visibility: hidden;
+}
+
+// Left filetree flush to the left edge of the viewport.
+.filetree-wrapper {
+    left: 0 !important;
+    width: var(--dg-panel-left) !important;
+    min-width: var(--dg-panel-left) !important;
+    justify-content: flex-start !important;
+    z-index: 30;
+    height: 100%;
+    align-items: stretch;
+}
+
+.filetree-sidebar {
+    padding-left: 8px;
+    margin-left: 0;
+    max-width: 100%;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-x: hidden;
+
+    // Match left file-list / folder text to right headings list size.
+    .filename,
+    .foldername,
+    .notelink,
+    .foldername-wrapper {
+        font-size: var(--dg-toc-font-size, 1rem) !important;
+        line-height: 1.5;
+    }
+
+    // Clicks toggle or open the row; they must not highlight the name as text.
+    .filetree-scroll,
+    .filename,
+    .foldername,
+    .foldername-wrapper,
+    a.notelink {
+        -webkit-user-select: none !important;
+        user-select: none !important;
+    }
+
+    // Whole highlighted row is the hit target (note = open file, folder = toggle).
+    // Keep labels left-aligned (do not use space-evenly across full width).
+    a.notelink {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        cursor: pointer;
+        text-decoration: none !important;
+        color: inherit;
+
+        &:hover {
+            text-decoration: none !important;
+        }
+
+        .filename {
+            pointer-events: none;
+        }
+    }
+
+    .foldername-wrapper,
+    .foldername-wrapper.align-icon {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 0.2em;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        cursor: pointer;
+        border-radius: 0;
+
+        &:hover {
+            background-color: var(--dg-notelink-hover-bg, rgba(255, 255, 255, 0.05));
+        }
+
+        i, svg {
+            flex-shrink: 0;
+        }
+
+        .foldername {
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+    }
+
+    // Align root-level note labels with folder names (after chevron).
+    > .folder > div:not(.filelist) > a.notelink,
+    .filetree-scroll > div:not(.filelist) > a.notelink {
+        margin-left: 0;
+        padding-left: calc(var(--dg-folder-icon-size, 14px) + 0.2em + 2px);
+    }
+
+    .filename {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    // Invert file-list colors: only the open note is accent-colored.
+    .notelink .filename {
+        color: var(--text-muted) !important;
+    }
+
+    .notelink.active-note {
+        border-left-color: var(--text-accent);
+    }
+
+    .notelink.active-note .filename {
+        color: var(--text-accent) !important;
+        font-weight: 600;
+    }
+
+    > .folder.filetree-scroll {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        overscroll-behavior: contain;
+    }
+
+    .inner-folder,
+    .filelist {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    // No Digital Garden / site-name heading in the filetree.
+    > a.site-name-link {
+        display: none !important;
+    }
+}
+
+.deadlines-block {
+    flex-shrink: 0;
+    margin-top: auto;
+    padding: 12px 8px 16px;
+    border-top: 1px solid var(--background-modifier-border, rgba(128, 128, 128, 0.35));
+    font-size: 0.85rem;
+    line-height: 1.45;
+}
+
+// When the open folders no longer fit, drop the deadline lines so the
+// file list can use that space. The table opener stays.
+.deadlines-block.dg-deadlines-compact {
+    padding-top: 8px;
+    padding-bottom: 10px;
+
+    .deadline-line {
+        display: none;
+    }
+}
+
+.deadline-line {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1em;
+    margin: 0 0 0.7em;
+    color: var(--text-muted);
+
+    &:last-child {
+        margin-bottom: 0;
+    }
+}
+
+.deadline-label {
+    display: block;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.deadline-detail {
+    display: inline;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+}
+
+.deadline-subject {
+    color: var(--text-muted);
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+        color: var(--text-accent, var(--text-normal));
+        text-decoration: underline;
+    }
+}
+
+.deadline-when {
+    color: var(--text-muted);
+}
+
+button.deadline-table-open {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 0;
+    padding: 8px 6px;
+    border: none;
+    border-radius: 4px;
+    outline: none;
+    box-shadow: none;
+    appearance: none;
+    background: none;
+    color: var(--text-muted);
+    font: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    cursor: pointer;
+    text-align: left;
+    text-decoration: none;
+    white-space: normal;
+    box-sizing: border-box;
+
+    &:hover,
+    &:focus,
+    &:focus-visible {
+        outline: none;
+        box-shadow: none;
+        background: var(--dg-notelink-hover-bg, rgba(255, 255, 255, 0.06));
+        color: var(--text-accent, var(--text-normal));
+        text-decoration: none;
+    }
+}
+
+.deadline-table-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.45);
+    overscroll-behavior: contain;
+}
+
+.deadline-table-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: max-content;
+    max-width: calc(100vw - 48px);
+    max-height: min(85vh, calc(100vh - 48px));
+    overflow: hidden;
+    background: var(--background-primary, #202020);
+    color: var(--text-normal);
+    border: 1px solid var(--background-modifier-border, rgba(128, 128, 128, 0.45));
+    border-radius: 8px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.deadline-table-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 40px;
+    border-bottom: 1px solid var(--background-modifier-border, rgba(128, 128, 128, 0.35));
+}
+
+.deadline-table-title {
+    text-align: center;
+}
+
+body:has(#dg-deadline-table) {
+    overflow: hidden;
+}
+
+.deadline-table-scroll {
+    flex: 0 0 auto;
+    min-height: 0;
+    max-width: 100%;
+    overflow: auto;
+    padding: 0;
+    background: var(--background-primary, #202020);
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.deadline-table-scroll::-webkit-scrollbar,
+.markdown-rendered ul.deadline-type-menu::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+@media (max-width: 1000px) {
+    .deadline-table-scroll {
+        touch-action: pan-x pan-y;
+    }
+}
+
+.deadline-table-empty {
+    margin: 12px;
+    color: var(--text-muted);
+}
+
+.deadline-table-scroll table {
+    margin: 0;
+    margin-block: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    width: max-content;
+    background: var(--background-primary, #1e232f);
+}
+
+.markdown-rendered .deadline-table-scroll thead tr,
+.markdown-rendered .deadline-table-scroll tbody tr,
+.markdown-rendered .deadline-table-scroll tbody tr:nth-child(odd),
+.markdown-rendered .deadline-table-scroll thead tr:hover,
+.markdown-rendered .deadline-table-scroll tbody tr:hover,
+.markdown-rendered .deadline-table-scroll tbody tr:nth-child(odd):hover {
+    background: var(--background-primary, #1e232f);
+    background-color: var(--background-primary, #1e232f);
+}
+
+.deadline-table-scroll th,
+.deadline-table-scroll td,
+.markdown-rendered .deadline-table-scroll thead tr > th,
+.markdown-rendered .deadline-table-scroll tbody tr > td,
+.markdown-rendered .deadline-table-scroll thead tr > th:nth-child(2n + 2),
+.markdown-rendered .deadline-table-scroll tbody tr > td:nth-child(2n + 2) {
+    box-sizing: border-box;
+    border: 1px solid var(--background-modifier-border, rgba(128, 128, 128, 0.35));
+    padding: 8px 10px;
+    vertical-align: middle;
+    text-align: center;
+    white-space: nowrap;
+    overflow: visible;
+    background: var(--background-primary, #1e232f);
+    background-color: var(--background-primary, #1e232f);
+}
+
+.deadline-header-shield {
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 8;
+    flex: none;
+    box-sizing: border-box;
+    background: transparent;
+    pointer-events: auto;
+}
+
+.deadline-table-scroll thead th,
+.markdown-rendered .deadline-table-scroll thead tr > th,
+.markdown-rendered .deadline-table-scroll thead tr > th:nth-child(2n + 2) {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    border-bottom-width: 4px;
+    // The header cells themselves must not be the hit target: a sticky cell
+    // lets clicks through to the row underneath. A shield behind this row
+    // catches those clicks. Column buttons stay clickable.
+    pointer-events: none;
+}
+
+.deadline-table-scroll td .deadline-subject {
+    display: block;
+    text-align: center;
+}
+
+.deadline-table-scroll tbody th:has(> a.deadline-date) {
+    pointer-events: none;
+}
+
+.deadline-table-scroll a.deadline-date,
+.markdown-rendered .deadline-table-scroll a.deadline-date {
+    display: inline;
+    width: auto;
+    pointer-events: auto;
+    color: inherit !important;
+    text-decoration: none !important;
+    text-decoration-line: none !important;
+    cursor: pointer;
+}
+
+.deadline-table-scroll a.deadline-date:hover,
+.deadline-table-scroll a.deadline-date:focus-visible,
+.markdown-rendered .deadline-table-scroll a.deadline-date:hover,
+.markdown-rendered .deadline-table-scroll a.deadline-date:focus-visible {
+    color: var(--text-accent, var(--link-color-hover)) !important;
+    text-decoration: underline !important;
+    text-decoration-line: underline !important;
+    text-underline-offset: 0.15em;
+}
+
+.deadline-type-anchor {
+    position: relative;
+    display: inline-block;
+    width: auto;
+    max-width: 100%;
+    vertical-align: baseline;
+    pointer-events: none;
+}
+
+button.deadline-type-button,
+button.deadline-type-button:focus,
+button.deadline-type-button:active {
+    display: inline-block;
+    width: auto;
+    min-width: 0;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    outline: none;
+    box-shadow: none;
+    appearance: none;
+    background: none;
+    background-color: transparent;
+    background-image: none;
+    pointer-events: auto;
+    color: inherit !important;
+    font: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none !important;
+    text-decoration-line: none !important;
+    white-space: nowrap;
+}
+
+button.deadline-type-button:hover,
+button.deadline-type-button:focus-visible,
+button.deadline-type-button.is-pointed {
+    color: var(--text-accent, var(--link-color-hover)) !important;
+    text-decoration: underline !important;
+    text-decoration-line: underline !important;
+    text-underline-offset: 0.15em;
+}
+
+.deadline-table-scroll .deadline-type-menu,
+.deadline-table-scroll .deadline-type-menu a {
+    pointer-events: auto;
+}
+
+.deadline-table-scroll thead,
+.deadline-table-scroll thead tr,
+.deadline-table-scroll th.deadline-type-head {
+    overflow: visible;
+}
+
+.deadline-table-scroll th.deadline-type-head,
+.markdown-rendered .deadline-table-scroll thead tr > th.deadline-type-head {
+    z-index: 6;
+}
+
+ul.deadline-type-menu,
+.markdown-rendered ul.deadline-type-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: auto;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: max-content;
+    min-width: max-content;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    background: var(--background-primary, #1e232f);
+    color: var(--text-normal);
+    border: 1px solid var(--background-modifier-border, rgba(128, 128, 128, 0.45));
+    border-radius: 8px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    max-height: min(50vh, 320px);
+    overflow: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    text-align: left;
+}
+
+ul.deadline-type-menu.deadline-type-menu-end,
+.markdown-rendered ul.deadline-type-menu.deadline-type-menu-end {
+    left: auto;
+    right: 0;
+}
+
+ul.deadline-type-menu > li,
+.markdown-rendered ul.deadline-type-menu > li {
+    position: static;
+    display: block;
+    width: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+    list-style: none;
+}
+
+ul.deadline-type-menu a,
+.markdown-rendered ul.deadline-type-menu a,
+.deadline-table-scroll .deadline-type-menu a {
+    display: block !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 7px 14px !important;
+    color: var(--text-normal);
+    text-align: left;
+    text-decoration: none !important;
+    white-space: nowrap;
+    background: transparent !important;
+    background-image: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+ul.deadline-type-menu a:hover,
+ul.deadline-type-menu a:focus-visible,
+ul.deadline-type-menu a.is-pointed,
+.markdown-rendered ul.deadline-type-menu a:hover,
+.markdown-rendered ul.deadline-type-menu a:focus-visible,
+.markdown-rendered ul.deadline-type-menu a.is-pointed {
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06)) !important;
+    background-image: none !important;
+    color: var(--text-accent, var(--text-normal)) !important;
+    text-decoration: none !important;
+}
+
+.deadline-table-scroll thead th.deadline-week-head,
+.markdown-rendered .deadline-table-scroll thead tr > th.deadline-week-head {
+    width: 2.6em;
+    min-width: 2.6em;
+    border-top: 0;
+    border-right: 0;
+    border-left: 0;
+    border-bottom: 4px solid var(--background-modifier-border, rgb(30, 35, 47));
+    background: var(--background-primary, #1e232f);
+    background-color: var(--background-primary, #1e232f);
+    padding: 8px 6px;
+}
+
+.deadline-table-scroll tbody > tr:first-child > th,
+.deadline-table-scroll tbody > tr:first-child > td,
+.markdown-rendered .deadline-table-scroll tbody > tr:first-child > th,
+.markdown-rendered .deadline-table-scroll tbody > tr:first-child > td {
+    border-top-width: 0;
+}
+
+.deadline-table-scroll th.deadline-week,
+.markdown-rendered .deadline-table-scroll tbody tr > th.deadline-week {
+    position: relative;
+    width: 2.6em;
+    min-width: 2.6em;
+    height: 1px;
+    border: none;
+    background: transparent;
+    background-color: transparent;
+    padding: 0;
+    vertical-align: middle;
+    text-align: center;
+    color: var(--text-normal, #d4d4d4);
+}
+
+.deadline-table-scroll tr.deadline-week-end > th,
+.deadline-table-scroll tr.deadline-week-end > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-end > th,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-end > td {
+    border-bottom-width: 0;
+}
+
+.deadline-table-scroll tr.deadline-week-rule,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule:nth-child(odd),
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule:hover {
+    background: transparent;
+    background-color: transparent;
+}
+
+.deadline-table-scroll tr.deadline-week-rule > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule:nth-child(odd) > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule:hover > td {
+    height: 4px;
+    padding: 0;
+    border: 0;
+    line-height: 0;
+    font-size: 0;
+    background: var(--background-modifier-border, rgb(30, 35, 47));
+    background-color: var(--background-modifier-border, rgb(30, 35, 47));
+}
+
+.deadline-table-scroll tr.deadline-week-rule + tr > th,
+.deadline-table-scroll tr.deadline-week-rule + tr > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule + tr > th,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-week-rule + tr > td {
+    border-top-width: 0;
+}
+
+.deadline-week-label {
+    position: absolute;
+    inset: 2px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.deadline-week-text {
+    display: block;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    transform-origin: center;
+    letter-spacing: 0.08em;
+    line-height: 1;
+}
+
+.dg-day-empty {
+    margin: 0.4em 0 0;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.dg-day-group {
+    margin: 0 0 1.6em;
+}
+
+.dg-day-group h2 {
+    margin-bottom: 0.35em;
+}
+
+.markdown-preview-view li.task-list-item,
+.markdown-preview-view li.task-list-item input[type="checkbox"],
+.markdown-preview-view li.task-list-item label,
+.markdown-rendered .task-list-item-checkbox {
+    cursor: pointer;
+}
+
+.deadline-table-scroll tbody tr.deadline-weekend > th:not(.deadline-week),
+.deadline-table-scroll tbody tr.deadline-weekend > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-weekend > th:not(.deadline-week),
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-weekend > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-weekend > th:not(.deadline-week):nth-child(2n + 2),
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-weekend > td:nth-child(2n + 2) {
+    background-color: #34363c !important;
+    background-color: color-mix(in srgb, var(--text-accent, #f6cd74) 14%, var(--background-primary, #1e232f)) !important;
+    background-image: none !important;
+}
+
+.deadline-table-scroll tbody tr.deadline-past > th:not(.deadline-week),
+.deadline-table-scroll tbody tr.deadline-past > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-past > th:not(.deadline-week),
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-past > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-past > th:not(.deadline-week):nth-child(2n + 2),
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-past > td:nth-child(2n + 2) {
+    background-color: color-mix(in srgb, var(--background-primary, #272e3f) 84%, black) !important;
+    background-image: none !important;
+}
+
+.deadline-table-scroll tbody tr.deadline-past.deadline-weekend > th:not(.deadline-week),
+.deadline-table-scroll tbody tr.deadline-past.deadline-weekend > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-past.deadline-weekend > th:not(.deadline-week),
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-past.deadline-weekend > td,
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-past.deadline-weekend > th:not(.deadline-week):nth-child(2n + 2),
+.markdown-rendered .deadline-table-scroll tbody tr.deadline-past.deadline-weekend > td:nth-child(2n + 2) {
+    background-color: color-mix(in srgb, color-mix(in srgb, var(--text-accent, #f6cd74) 14%, var(--background-primary, #272e3f)) 84%, black) !important;
+    background-image: none !important;
+}
+
+a.external-link,
+.markdown-preview-view a.external-link,
+.markdown-rendered a.external-link {
+    --dg-external-link-padding: 0px;
+    background-image: none !important;
+    background-size: 0 !important;
+    padding-right: 0 !important;
+    padding-inline-end: 0 !important;
+    margin-right: 0 !important;
+    margin-inline-end: 0 !important;
+}
+
+main.content > hr.dg-deadline-divider {
+    border: 0;
+    border-top: 2px solid color-mix(in srgb, var(--text-normal, #c8c8c8) 55%, transparent);
+    margin: 1.75em 0;
+    height: 0;
+    width: 100%;
+    background: none;
+}
+
+// Right headings list flush to the right edge of the viewport.
+.sidebar {
+    top: 0 !important;
+    height: 100% !important;
+    left: auto !important;
+    right: 0 !important;
+    width: var(--dg-panel-right);
+    max-width: var(--dg-panel-right);
+    padding: 10px 0 !important;
+    box-sizing: border-box;
+    z-index: 30;
+}
+
+.sidebar-container {
+    height: 100%;
+    min-height: 0;
+    box-sizing: border-box;
+    padding-top: 0;
+    padding-right: 0 !important;
+    padding-bottom: 20px;
+    padding-left: 12px;
+
+    .toc {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        padding: 5px 0 5px 5px;
+        margin: 0;
+    }
+
+    .toc-title-container {
+        flex-shrink: 0;
+    }
+
+    .toc-container {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+        overflow-y: auto;
+        margin-bottom: 0;
+    }
+
+    .backlinks {
+        display: none;
+    }
+}
+
+// Outline rows repeat the heading, including its rendered formula. Keep that
+// formula on the row and let a wide one scroll inside the panel instead of
+// being clipped by the page.
+.toc-container mjx-container {
+    position: relative;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    white-space: nowrap;
+    scrollbar-width: thin;
+}
+
+.toc-container mjx-assistive-mml {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+// Default article gutters (room for corner Show buttons). Pinned-open
+// panels on desktop widen these margins; hover-peek does not.
+.content:not(.canvas-page) {
+    margin-left: 48px !important;
+    margin-right: 48px !important;
+    max-width: none !important;
+    width: auto;
+    box-sizing: border-box;
+    transition: margin-left 0.2s ease, margin-right 0.2s ease;
+}
+
+// Note/page title: large and centered in the content area.
+.content > header {
+    text-align: center;
+    margin-top: 0;
+    padding-top: 0;
+}
+
+.content > header > h1 {
+    text-align: center;
+    font-size: clamp(1.85rem, 3.2vw, 2.55rem);
+    font-weight: 700;
+    line-height: 1.15;
+    margin: 0 auto 0.45em;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.content > header .header-meta {
+    justify-content: center;
+}
+
+// Hide Ctrl+K (and similar) shortcut labels in the search bar.
+.search-button .search-keys {
+    display: none !important;
+}
+
+// Hide local graph (desktop + phone).
+#graph-component,
+.graph {
+    display: none !important;
+}
+
+// --- Fixed corner panel toggles (icon-only, never move) --------------------
+// Before panelBoot.njk runs, keep drawers hidden to avoid an open→close flash.
+html:not(.dg-panel-boot) .filetree-wrapper,
+html:not(.dg-panel-boot) .sidebar#page-panel {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+.panel-edge-toggle {
+    --panel-toggle-icon: var(--text-muted);
+    position: fixed;
+    top: 12px;
+    z-index: 60;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    margin: 0;
+    border: 1px solid var(--background-modifier-border, var(--background-secondary-alt, #333));
+    background: var(--background-secondary, #1e1e1e);
+    color: var(--panel-toggle-icon);
+    border-radius: 6px;
+    cursor: pointer;
+    line-height: 1;
+    // Stable icon color: never flash white↔black on hover / state / nav.
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.panel-edge-toggle:hover,
+.panel-edge-toggle:focus,
+.panel-edge-toggle:focus-visible,
+.panel-edge-toggle:active {
+    color: var(--panel-toggle-icon);
+    border-color: var(--text-faint);
+    outline: none;
+}
+
+.panel-edge-toggle i,
+.panel-edge-toggle svg,
+.panel-edge-toggle .panel-icon,
+.panel-edge-toggle .svg-icon {
+    width: 18px;
+    height: 18px;
+    color: var(--panel-toggle-icon) !important;
+    stroke: var(--panel-toggle-icon) !important;
+    fill: none !important;
+    opacity: 1 !important;
+    transition: none !important;
+}
+
+// Dual chevrons: CSS swap only (lucide created once) — no color swap.
+.panel-edge-toggle .panel-icon-closed {
+    display: none;
+}
+
+.panel-edge-toggle .panel-icon-open {
+    display: inline-flex;
+}
+
+html.left-panel-collapsed .panel-edge-toggle-left .panel-icon-closed,
+html.right-panel-collapsed .panel-edge-toggle-right .panel-icon-closed {
+    display: inline-flex;
+}
+
+html.left-panel-collapsed .panel-edge-toggle-left .panel-icon-open,
+html.right-panel-collapsed .panel-edge-toggle-right .panel-icon-open {
+    display: none;
+}
+
+.panel-edge-toggle-left {
+    left: 10px;
+    right: auto;
+}
+
+.panel-edge-toggle-right {
+    right: 10px;
+    left: auto;
+}
+
+// Legacy in-panel Hide rows (removed from templates) — keep suppressed.
+.panel-collapse-row,
+.panel-collapse-btn {
+    display: none !important;
+}
+
+// Drag handles on the inner edges of the side menus.
+.panel-resizer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    z-index: 6;
+    cursor: col-resize;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    background: transparent;
+}
+
+.panel-resizer::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: transparent;
+}
+
+.panel-resizer-left {
+    right: 0;
+}
+
+.panel-resizer-left::after {
+    right: 0;
+}
+
+.panel-resizer-right {
+    left: 0;
+}
+
+.panel-resizer-right::after {
+    left: 0;
+}
+
+.panel-resizer:hover::after,
+.panel-resizer:focus-visible::after,
+.panel-resizer.is-dragging::after {
+    background: var(--text-accent, var(--text-muted));
+}
+
+.panel-resizer:focus-visible {
+    outline: none;
+}
+
+html.panel-resizing,
+html.panel-resizing * {
+    cursor: col-resize !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+}
+
+html.panel-resizing .content:not(.canvas-page),
+html.panel-resizing .filetree-wrapper,
+html.panel-resizing .sidebar#page-panel {
+    transition: none !important;
+}
+
+// Desktop: hover = overlay drop over text; click-pin = in-flow (text narrows).
+@media (min-width: 1001px) {
+    .filetree-wrapper,
+    .sidebar#page-panel {
+        position: fixed !important;
+        background-color: var(--background-secondary, #1e1e1e);
+        transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease, box-shadow 0.15s ease;
+        width: var(--dg-panel-left) !important;
+        min-width: var(--dg-panel-left) !important;
+        max-width: var(--dg-panel-left) !important;
+    }
+
+    .sidebar#page-panel {
+        width: var(--dg-panel-right) !important;
+        min-width: var(--dg-panel-right) !important;
+        max-width: var(--dg-panel-right) !important;
+    }
+
+    // Keep search fully below the fixed corner toggle.
+    .filetree-sidebar {
+        padding-top: 52px;
+        position: relative;
+    }
+
+    .filetree-sidebar .search-button {
+        margin-top: 0;
+    }
+
+    // --- Pinned-closed, not hovering: hidden --------------------------------
+    html.left-panel-collapsed:not(.left-panel-peek) .filetree-wrapper {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(-8px);
+        overflow: hidden !important;
+        z-index: 50;
+        box-shadow: none;
+    }
+
+    html.right-panel-collapsed:not(.right-panel-peek) .sidebar#page-panel {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(-8px);
+        overflow: hidden !important;
+        padding: 10px 0 !important;
+        z-index: 50;
+        box-shadow: none;
+    }
+
+    html.right-panel-collapsed:not(.right-panel-peek) .sidebar#page-panel .page-panel-header {
+        display: none;
+    }
+
+    // --- Hover peek (pinned closed): overlay over text, no layout shift -----
+    html.left-panel-collapsed.left-panel-peek .filetree-wrapper,
+    html.right-panel-collapsed.right-panel-peek .sidebar#page-panel {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(0);
+        overflow: auto !important;
+        z-index: 50;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    }
+
+    // Peek must not narrow the article.
+    html.left-panel-collapsed .content:not(.canvas-page) {
+        margin-left: 48px !important;
+    }
+
+    html.right-panel-collapsed .content:not(.canvas-page) {
+        margin-right: 48px !important;
+    }
+
+    html.left-panel-peek .panel-edge-toggle-left,
+    html.right-panel-peek .panel-edge-toggle-right {
+        z-index: 61;
+    }
+
+    // --- Click-pinned open: in-flow — article narrows, no overlay on text ---
+    html:not(.left-panel-collapsed) .filetree-wrapper {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: none;
+        overflow: auto !important;
+        z-index: 30;
+        box-shadow: none;
+    }
+
+    html:not(.right-panel-collapsed) .sidebar#page-panel {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: none;
+        overflow: auto !important;
+        z-index: 30;
+        box-shadow: none;
+        padding: 10px 0 !important;
+    }
+
+    html:not(.left-panel-collapsed) .content:not(.canvas-page) {
+        margin-left: calc(var(--dg-panel-left) + var(--dg-filetree-gap)) !important;
+    }
+
+    html:not(.right-panel-collapsed) .content:not(.canvas-page) {
+        margin-right: calc(var(--dg-panel-right) + var(--dg-sidebar-gap)) !important;
+    }
+
+    @media (max-width: 1400px) {
+        html:not(.left-panel-collapsed) .content:not(.canvas-page) {
+            margin-left: calc(var(--dg-panel-left) + 16px) !important;
+        }
+
+        html:not(.right-panel-collapsed) .content:not(.canvas-page) {
+            margin-right: 20px !important;
+        }
+    }
+
+}
+
+// Compact (phone): keep width-collapse hide used by overlay drawers.
+@media (max-width: 1000px) {
+    .filetree-wrapper,
+    .sidebar#page-panel {
+        transition: width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease, opacity 0.15s ease, padding 0.2s ease;
+    }
+
+    html.left-panel-collapsed .filetree-wrapper {
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        overflow: hidden !important;
+    }
+
+    html.right-panel-collapsed .sidebar#page-panel {
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        padding: 0 !important;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        overflow: hidden !important;
+    }
+
+    html.right-panel-collapsed .sidebar#page-panel .page-panel-header {
+        display: none;
+    }
+}
+
+// --- Compact (phone) fit: same chrome, no horizontal scroll ----------------
+@media (max-width: 1000px) {
+    body {
+        --dg-filetree-width: var(--dg-compact-panel-width);
+        --dg-filetree-min-width: 0px;
+        --dg-sidebar-max-width: var(--dg-compact-panel-width);
+        --dg-sidebar-min-width: 0px;
+        --dg-filetree-gap: 0px;
+        --dg-sidebar-gap: 0px;
+        --dg-content-padding-top: 28px;
+    }
+
+    // Disable stock DG phone sheet / navbar / FAB — we use the same panels.
+    .navbar,
+    .empty-navbar,
+    .fullpage-overlay,
+    .page-panel-toggle,
+    .page-panel-fab,
+    .page-panel-backdrop,
+    .page-panel-header {
+        display: none !important;
+    }
+
+    body.page-panel-open {
+        overflow: auto;
+    }
+
+    // Override base ≤1400px bottom-sheet rules: keep a right side drawer.
+    .sidebar,
+    .sidebar#page-panel {
+        position: fixed !important;
+        top: 0 !important;
+        bottom: auto !important;
+        left: auto !important;
+        right: 0 !important;
+        width: var(--dg-panel-right) !important;
+        max-width: var(--dg-panel-right) !important;
+        min-width: 0 !important;
+        height: 100% !important;
+        max-height: none !important;
+        margin: 0 !important;
+        padding: 10px 0 !important;
+        border-radius: 0 !important;
+        border-top: none !important;
+        transform: none !important;
+        box-shadow: -4px 0 24px rgba(0, 0, 0, 0.25);
+        background-color: var(--background-secondary);
+        overflow: hidden;
+    }
+
+    html:not(.right-panel-collapsed) .sidebar#page-panel {
+        visibility: visible !important;
+    }
+
+    .sidebar.is-open {
+        transform: none !important;
+    }
+
+    .sidebar-container {
+        height: 100%;
+        max-height: none;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 8px 10px 20px !important;
+        gap: 0;
+    }
+
+    .filetree-wrapper {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: var(--dg-panel-left) !important;
+        min-width: 0 !important;
+        max-width: var(--dg-panel-left) !important;
+        height: 100% !important;
+        justify-content: flex-start !important;
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.25);
+        display: flex !important;
+    }
+
+    .filetree-sidebar {
+        width: 100%;
+        max-width: 100%;
+        // Leave room under the fixed corner Hide/Show so Search stays clear.
+        padding: 52px 10px 10px 8px;
+        box-sizing: border-box;
+    }
+
+    .filetree-sidebar .search-button {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        margin: 8px 0;
+    }
+
+    // Content always uses the full phone width; panels overlay on top.
+    .content:not(.canvas-page) {
+        margin-left: 12px !important;
+        margin-right: 12px !important;
+        max-width: calc(100vw - 24px) !important;
+        width: auto !important;
+        padding-left: 0;
+        padding-right: 0;
+        box-sizing: border-box;
+    }
+
+    html.left-panel-collapsed .content:not(.canvas-page),
+    html.right-panel-collapsed .content:not(.canvas-page),
+    html.left-panel-collapsed.right-panel-collapsed .content:not(.canvas-page) {
+        margin-left: 12px !important;
+        margin-right: 12px !important;
+    }
+
+    html.left-panel-collapsed .filetree-wrapper {
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        overflow: hidden !important;
+        box-shadow: none !important;
+    }
+
+    html.right-panel-collapsed .sidebar#page-panel {
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        padding: 0 !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        overflow: hidden !important;
+        box-shadow: none !important;
+    }
+
+    html.right-panel-collapsed .sidebar#page-panel * {
+        visibility: hidden !important;
+    }
+
+    // Corner toggles stay fixed (same slots as desktop).
+    .panel-edge-toggle-left {
+        left: 8px;
+    }
+
+    .panel-edge-toggle-right {
+        right: 8px;
+    }
+
+    .content > header > h1 {
+        font-size: clamp(1.45rem, 7vw, 2rem);
+        padding-inline: 36px; // room for edge toggles above
+        box-sizing: border-box;
+    }
+
+    // Keep any wide media from forcing horizontal scroll.
+    .content img,
+    .content video,
+    .content pre,
+    .content table {
+        max-width: 100%;
+    }
+
+    .content pre {
+        overflow-x: auto;
+    }
+
+    // Wide formulas scroll inside the column. Inline formulas keep MathJax's
+    // own baseline: forcing vertical-align: middle dropped tall arrows
+    // (overrightarrow and the like) below the surrounding text.
+    // Display math ($$) stays centered when it fits, same as on a wide
+    // screen. A formula wider than the screen starts fully scrolled left.
+    .content mjx-container[display="true"] {
+        display: flex !important;
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        align-items: center;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        overflow-y: hidden;
+        text-align: center !important;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        box-sizing: border-box;
+        padding-block: 0.35em;
+    }
+
+    .content mjx-container[display="true"]::before,
+    .content mjx-container[display="true"]::after {
+        content: "";
+        flex: 1 0 0;
+    }
+
+    .content mjx-container[display="true"] > svg {
+        flex: 0 0 auto;
+        max-width: none !important;
+    }
+
+    .content mjx-container[display="true"] mjx-assistive-mml {
+        position: absolute !important;
+    }
+
+    .content mjx-container.dg-math-xscroll:not([display="true"]) {
+        display: block !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        box-sizing: border-box;
+        padding: 0.2em 0.45em;
+        scroll-padding-inline: 0.45em;
+    }
+
+    .content mjx-container[display="true"]::-webkit-scrollbar,
+    .content mjx-container.dg-math-xscroll::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
+    }
+
+    .content mjx-container.dg-math-xscroll:not([display="true"]) svg {
+        max-width: none !important;
+    }
+
+    .dg-math-frame {
+        position: relative;
+        display: block;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .dg-math-fade {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 72px;
+        pointer-events: none;
+        opacity: 0;
+        z-index: 1;
+    }
+
+    .dg-math-fade-left {
+        left: 0;
+        background: linear-gradient(
+            to right,
+            var(--dg-fade-bg, var(--background-primary, rgb(32, 31, 31))) 0%,
+            color-mix(in srgb, var(--dg-fade-bg, var(--background-primary, rgb(32, 31, 31))) 78%, transparent) 32%,
+            color-mix(in srgb, var(--dg-fade-bg, var(--background-primary, rgb(32, 31, 31))) 38%, transparent) 62%,
+            color-mix(in srgb, var(--dg-fade-bg, var(--background-primary, rgb(32, 31, 31))) 8%, transparent) 84%,
+            transparent 100%
+        );
+    }
+
+    .dg-math-fade-right {
+        right: 0;
+        background: linear-gradient(
+            to left,
+            var(--dg-fade-bg, var(--background-primary, rgb(32, 31, 31))) 0%,
+            color-mix(in srgb, var(--dg-fade-bg, var(--background-primary, rgb(32, 31, 31))) 78%, transparent) 32%,
+            color-mix(in srgb, var(--dg-fade-bg, var(--background-primary, rgb(32, 31, 31))) 38%, transparent) 62%,
+            color-mix(in srgb, var(--dg-fade-bg, var(--background-primary, rgb(32, 31, 31))) 8%, transparent) 84%,
+            transparent 100%
+        );
+    }
+
+    .dg-math-frame.dg-math-can-left .dg-math-fade-left,
+    .dg-math-frame.dg-math-can-right .dg-math-fade-right {
+        opacity: 1;
+    }
+}
+
+// Passed dates in «Формы контроля»: the heading and the text under it
+// are only a little darker than the rest of the note.
+main.content > .dg-past-deadline {
+    color: color-mix(in srgb, var(--text-normal) 65%, var(--background-primary));
+}
+
+@for $level from 1 through 6 {
+    main.content > h#{$level}.dg-past-deadline {
+        color: color-mix(in srgb, var(--h#{$level}-color, var(--text-normal)) 65%, var(--background-primary));
+    }
+}
+
+main.content > .dg-past-deadline a {
+    color: color-mix(in srgb, var(--link-external-color, var(--text-accent, var(--text-normal))) 65%, var(--background-primary));
+}
+
+// Date headings on a deadline note look like plain text until hovered.
+main.content :is(h1, h2, h3, h4, h5, h6) a.dg-deadline-date-link,
+.markdown-rendered :is(h1, h2, h3, h4, h5, h6) a.dg-deadline-date-link {
+    color: inherit !important;
+    font-weight: inherit;
+    text-decoration: none !important;
+    text-decoration-line: none !important;
+    background: none !important;
+    background-image: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    cursor: pointer;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+main.content :is(h1, h2, h3, h4, h5, h6) a.dg-deadline-date-link:hover,
+main.content :is(h1, h2, h3, h4, h5, h6) a.dg-deadline-date-link:focus-visible,
+.markdown-rendered :is(h1, h2, h3, h4, h5, h6) a.dg-deadline-date-link:hover,
+.markdown-rendered :is(h1, h2, h3, h4, h5, h6) a.dg-deadline-date-link:focus-visible {
+    color: var(--text-accent, var(--link-color-hover, var(--link-color))) !important;
+    text-decoration: underline !important;
+    text-decoration-line: underline !important;
+    text-underline-offset: 0.15em;
+}
+
+// Brief highlight when a search result or deadline link lands on a heading.
+h1.heading-flash,
+h2.heading-flash,
+h3.heading-flash,
+h4.heading-flash,
+h5.heading-flash,
+h6.heading-flash {
+    animation: dg-heading-flash 1s ease;
+    border-radius: 4px;
+}
+
+@keyframes dg-heading-flash {
+    0%,
+    75% {
+        background-color: color-mix(in srgb, var(--text-accent, #8ab4f8) 42%, transparent);
+        box-shadow: none;
+    }
+    100% {
+        background-color: transparent;
+        box-shadow: none;
+    }
+}
+
+// Netlify / Forestry badge guards (unchanged from prior PR work).
+.forestry-fixed-ui,
+[class*="forestry-fixed"],
+[data-fixed-position="bottom-right"],
+[data-fixed-position="bottom-left"],
+[data-fixed-position="bottom"],
+#netlify-identity-widget,
+.netlify-modal,
+[class*="netlify-badge"],
+[id*="netlify-badge"],
+[class*="netlify-notice"],
+[id*="netlify-notice"],
+a[href*="netlify.com"][class*="badge"],
+a[href*="netlify.com"][target="_blank"]:has(img),
+iframe[src*="netlify"],
+img[alt*="Netlify" i],
+img[alt*="netlify" i],
+img[src*="netlify"] {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+}
