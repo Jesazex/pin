@@ -30,6 +30,9 @@ jobs:
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
+        with:
+          # Creates the Pages site on the first deploy. Later builds only read it.
+          enablement: true
       # GitHub Pages puts a project site at /<repo>/ and lowercases that name.
       # After a rename, configure-pages can still report the old path, so the
       # address is taken from the current repository name.
