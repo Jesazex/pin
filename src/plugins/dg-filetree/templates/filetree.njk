@@ -1,0 +1,66 @@
+{% if settings.dgShowFileTree !== true %}
+  {% include "components/navbar.njk" %}
+{% else %}
+  {% macro menuItem(fileOrFolderName, fileOrFolder, step, currentPath) %}
+    {%if fileOrFolder.isNote or fileOrFolder.isFolder%}
+        <div x-show="isOpen" style="display:none" class="{{'filelist' if step>0}}">
+            {%if fileOrFolder.isNote and not fileOrFolder.hide %}
+                <a class="notelink {{ 'active-note' if fileOrFolder.permalink === permalink}}"
+                   href="{{fileOrFolder.permalink}}">
+                    <span class="filename" data-note-icon="{{fileOrFolder.noteIcon}}">{{fileOrFolder.name}}</span>
+                </a>
+            {% elif fileOrFolder.isFolder%}
+                <div class="folder inner-folder" x-data="{isOpen: $persist(false).as({{currentPath | dump}}), toggleFolder() { this.isOpen = !this.isOpen; if (!this.isOpen && window.dgCollapseNestedFolders) { var folder = (this.$el && this.$el.closest) ? (this.$el.closest('.inner-folder') || this.$el) : this.$el; window.dgCollapseNestedFolders(folder); } }}">
+                    <div class="foldername-wrapper align-icon" role="button" tabindex="0" @click.stop="toggleFolder()" @keydown.enter.prevent="toggleFolder()" @keydown.space.prevent="toggleFolder()">
+                    <i x-show="isOpen" style="display: none;"  data-lucide="chevron-down"></i>
+                    <i x-show="!isOpen"  data-lucide="chevron-right"></i>
+                    <span class="foldername">{{fileOrFolderName}}</span>
+                    </div>
+                    {% for fileOrFolderName, child in fileOrFolder %}
+                        {{menuItem(fileOrFolderName, child, step+1, (currentPath+"/"+fileOrFolderName))}}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        {%endif%}
+    {% endmacro %}
+
+    {# Always use the desktop filetree chrome (no stock phone navbar).
+       Compact viewports collapse panels via sidebarToggles + CSS. #}
+    <script>
+      window.dgCollapseNestedFolders = function (folderEl) {
+        if (!folderEl || !folderEl.querySelectorAll) return;
+        folderEl.querySelectorAll(".inner-folder").forEach(function (child) {
+          var stack = child._x_dataStack;
+          var data = stack && stack[0];
+          if (data && data.isOpen) data.isOpen = false;
+        });
+      };
+    </script>
+    <div x-data="{isDesktop: true, showFilesMobile: false}">
+
+      <div class="filetree-wrapper" style="display: flex;">
+      <div class="panel-resizer panel-resizer-left" data-panel-resize="left" role="separator" aria-orientation="vertical" aria-label="Изменить ширину списка файлов" tabindex="0"></div>
+      <nav class="filetree-sidebar">
+        {% for imp in dynamics.filetree.beforeTitle %}
+            {% include imp %}
+        {% endfor %}
+         {% if meta.siteLogoPath %}
+         <a href="/" style="text-decoration: none; display: flex; justify-content: center;">
+                   <img class="site-logo" src="{{meta.siteLogoPath}}" alt="{{meta.siteName}}">
+         </a>
+         {% endif %}
+         {% for imp in dynamics.filetree.afterTitle %}
+            {% include imp %}
+        {% endfor %}
+        {% set slotName = "filetree.actions" %}{% include "components/pluginSlot.njk" %}
+         <div class="folder filetree-scroll" x-data="{isOpen: true}">
+               {%- for fileOrFolderName, fileOrFolder in filetree -%}
+                  {{menuItem(fileOrFolderName, fileOrFolder, 0, fileOrFolderName)}}
+               {%- endfor -%}
+         </div>
+         {% include "components/deadlines.njk" %}
+      </nav>
+      </div>
+    </div>
+{% endif %}

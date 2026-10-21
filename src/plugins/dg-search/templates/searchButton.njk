@@ -1,0 +1,8 @@
+{% if settings.dgEnableSearch === true %}
+<div class="search-button align-icon" onclick="toggleSearch()">
+    <span class="search-icon">
+        <i data-lucide="search"></i>
+    </span>
+    <span class="search-text">{{ meta.uiStrings.searchButtonText }}</span>
+</div>
+{% endif %}

@@ -1,0 +1,589 @@
+{#- Fixed corner icon-only toggles + desktop hover-peek + mobile tap-close. -#}
+<button type="button"
+        class="panel-edge-toggle panel-edge-toggle-left"
+        data-panel-toggle="left"
+        aria-label="Toggle file list"
+        title="Toggle file list">
+      <i data-lucide="chevron-right" class="panel-icon panel-icon-closed" aria-hidden="true"></i>
+      <i data-lucide="chevron-left" class="panel-icon panel-icon-open" aria-hidden="true"></i>
+</button>
+<button type="button"
+        class="panel-edge-toggle panel-edge-toggle-right"
+        data-panel-toggle="right"
+        aria-label="Toggle outline"
+        title="Toggle outline">
+      <i data-lucide="chevron-left" class="panel-icon panel-icon-closed" aria-hidden="true"></i>
+      <i data-lucide="chevron-right" class="panel-icon panel-icon-open" aria-hidden="true"></i>
+</button>
+
+<script>
+(function () {
+      function overflowYScrolls(el) {
+            if (!el || el === document.body || el === document.documentElement) return false;
+            var oy = getComputedStyle(el).overflowY;
+            return oy === "auto" || oy === "scroll" || oy === "overlay";
+      }
+
+      function canConsumeWheel(el, deltaY) {
+            if (!overflowYScrolls(el) || el.scrollHeight <= el.clientHeight + 1) return false;
+            if (deltaY > 0) return el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+            if (deltaY < 0) return el.scrollTop > 0;
+            return false;
+      }
+
+      function wheelConsumer(start, boundary, deltaY) {
+            var el = start && start.nodeType === 1 ? start : start && start.parentElement;
+            while (el && el !== boundary && el !== document.body && el !== document.documentElement) {
+                  if (canConsumeWheel(el, deltaY)) return el;
+                  el = el.parentElement;
+            }
+            return null;
+      }
+
+      // The file list and the open deadline table keep the article from scrolling.
+      document.addEventListener("wheel", function (event) {
+            if (!event.deltaY) return;
+            var table = document.getElementById("dg-deadline-table");
+            if (table) {
+                  if (!wheelConsumer(event.target, table, event.deltaY)) event.preventDefault();
+                  return;
+            }
+            var list = event.target.closest && event.target.closest(".filetree-scroll");
+            if (!list) return;
+            if (!wheelConsumer(event.target, list.parentElement, event.deltaY)) event.preventDefault();
+      }, { capture: true, passive: false });
+
+      const LEFT_KEY = 'dg-left-panel-collapsed';
+      const RIGHT_KEY = 'dg-right-panel-collapsed';
+      const LEFT_WIDTH_KEY = 'dg-left-panel-width';
+      const RIGHT_WIDTH_KEY = 'dg-right-panel-width';
+      const COMPACT_MQ = window.matchMedia('(max-width: 1000px)');
+      const DESKTOP_MQ = window.matchMedia('(min-width: 1001px)');
+
+      const hoverPeek = { left: false, right: false };
+      const leaveTimers = { left: null, right: null };
+      let iconsReady = false;
+
+      function isCompact() {
+            return COMPACT_MQ.matches;
+      }
+
+      function isDesktop() {
+            return DESKTOP_MQ.matches;
+      }
+
+      function storageKey(side) {
+            return side === 'left' ? LEFT_KEY : RIGHT_KEY;
+      }
+
+      function readCollapsed(key) {
+            try {
+                  const value = sessionStorage.getItem(key);
+                  if (value === null) {
+                        return true;
+                  }
+                  return value === '1';
+            } catch {
+                  return true;
+            }
+      }
+
+      function writeCollapsed(key, value) {
+            try {
+                  sessionStorage.setItem(key, value ? '1' : '0');
+            } catch {
+                  // ignore
+            }
+      }
+
+      function pinnedCollapsed(side) {
+            return readCollapsed(storageKey(side));
+      }
+
+      function toggleBtn(side) {
+            return document.querySelector(`.panel-edge-toggle[data-panel-toggle="${side}"]`);
+      }
+
+      function panelEl(side) {
+            return side === 'left'
+                  ? document.querySelector('.filetree-wrapper')
+                  : document.querySelector('.sidebar#page-panel');
+      }
+
+      function ensureIcons() {
+            if (iconsReady) return;
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                  document.querySelectorAll('.panel-edge-toggle').forEach((btn) => {
+                        window.lucide.createIcons({
+                              nodes: [btn],
+                              attrs: { class: ['svg-icon'] },
+                        });
+                  });
+                  iconsReady = true;
+            }
+      }
+
+      function applyState() {
+            let leftPinned = pinnedCollapsed('left');
+            let rightPinned = pinnedCollapsed('right');
+
+            if (isCompact() && !leftPinned && !rightPinned) {
+                  rightPinned = true;
+                  writeCollapsed(RIGHT_KEY, true);
+            }
+
+            const leftPeek = isDesktop() && hoverPeek.left;
+            const rightPeek = isDesktop() && hoverPeek.right;
+            const root = document.documentElement;
+
+            root.classList.toggle('left-panel-collapsed', leftPinned);
+            root.classList.toggle('right-panel-collapsed', rightPinned);
+            root.classList.toggle('left-panel-peek', leftPeek && leftPinned);
+            root.classList.toggle('right-panel-peek', rightPeek && rightPinned);
+            root.classList.toggle('compact-panels', isCompact());
+            root.classList.add('dg-panel-boot');
+
+            document.body.classList.toggle('left-panel-collapsed', leftPinned);
+            document.body.classList.toggle('right-panel-collapsed', rightPinned);
+            document.body.classList.toggle('left-panel-peek', leftPeek && leftPinned);
+            document.body.classList.toggle('right-panel-peek', rightPeek && rightPinned);
+            document.body.classList.toggle('compact-panels', isCompact());
+
+            // Icons are swapped via CSS; only create lucide SVGs once.
+            ensureIcons();
+      }
+
+      function setCollapsed(side, collapsed) {
+            if (isCompact() && !collapsed) {
+                  writeCollapsed(LEFT_KEY, side !== 'left');
+                  writeCollapsed(RIGHT_KEY, side !== 'right');
+            } else {
+                  writeCollapsed(storageKey(side), collapsed);
+            }
+            hoverPeek[side] = false;
+            applyState();
+            applyStoredWidths();
+      }
+
+      function setHoverPeek(side, on) {
+            if (!isDesktop()) {
+                  hoverPeek.left = false;
+                  hoverPeek.right = false;
+                  return;
+            }
+            if (on && !pinnedCollapsed(side)) {
+                  hoverPeek[side] = false;
+                  applyState();
+                  return;
+            }
+            hoverPeek[side] = !!on;
+            applyState();
+      }
+
+      function relatedStillInside(side, related) {
+            if (!related || !(related instanceof Node)) return false;
+            const panel = panelEl(side);
+            const btn = toggleBtn(side);
+            return (panel && panel.contains(related)) || (btn && btn.contains(related));
+      }
+
+      // The panels sit flush with the viewport. Hitting that outer edge makes
+      // the browser fire pointerleave (the pointer is "outside" the document)
+      // even though the cursor is still on the menu. Treat a band past that
+      // edge as part of the panel so the peek stays open.
+      function pointerOverSide(side, x, y) {
+            if (typeof x !== 'number' || typeof y !== 'number') return false;
+            const panel = panelEl(side);
+            const btn = toggleBtn(side);
+            function over(el, extendOuter) {
+                  if (!el) return false;
+                  const r = el.getBoundingClientRect();
+                  if (r.width < 1 || r.height < 1) return false;
+                  let left = r.left - 2;
+                  let right = r.right + 2;
+                  const top = r.top - 2;
+                  const bottom = r.bottom + 2;
+                  if (extendOuter && side === 'left') left = Math.min(left, -40);
+                  if (extendOuter && side === 'right') right = Math.max(right, window.innerWidth + 40);
+                  return x >= left && x <= right && y >= top && y <= bottom;
+            }
+            return over(panel, true) || over(btn, false);
+      }
+
+      function cancelPeekClose(side) {
+            clearTimeout(leaveTimers[side]);
+            leaveTimers[side] = null;
+      }
+
+      function schedulePeekClose(side) {
+            if (leaveTimers[side]) return;
+            leaveTimers[side] = setTimeout(() => {
+                  leaveTimers[side] = null;
+                  setHoverPeek(side, false);
+            }, 80);
+      }
+
+      function bindHover(side) {
+            const onEnter = () => {
+                  if (!isDesktop()) return;
+                  cancelPeekClose(side);
+                  setHoverPeek(side, true);
+            };
+            const onLeave = (evt) => {
+                  if (!isDesktop()) return;
+                  if (document.documentElement.classList.contains('panel-resizing')) return;
+                  if (relatedStillInside(side, evt.relatedTarget)) return;
+                  if (pointerOverSide(side, evt.clientX, evt.clientY)) return;
+                  schedulePeekClose(side);
+            };
+
+            const btn = toggleBtn(side);
+            const panel = panelEl(side);
+            if (btn) {
+                  btn.addEventListener('pointerenter', onEnter);
+                  btn.addEventListener('pointerleave', onLeave);
+            }
+            if (panel) {
+                  panel.addEventListener('pointerenter', onEnter);
+                  panel.addEventListener('pointerleave', onLeave);
+            }
+      }
+
+      function countsOpen(side) {
+            const root = document.documentElement;
+            const collapsed = root.classList.contains(side === 'left' ? 'left-panel-collapsed' : 'right-panel-collapsed');
+            if (!collapsed) return true;
+            return root.classList.contains(side === 'left' ? 'left-panel-peek' : 'right-panel-peek');
+      }
+
+      // Article (or the strip not covered by an overlay panel) stays >= 25vw.
+      function layoutExtra() {
+            if (window.innerWidth <= 1000 || !document.body) return 0;
+            const cs = getComputedStyle(document.body);
+            const pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+            const gutter = Math.max(0, window.innerWidth - document.body.clientWidth);
+            return pad + gutter;
+      }
+
+      function centerWidth(leftW, rightW, leftCollapsed, rightCollapsed, vw) {
+            if (vw <= 1000) {
+                  return vw - (leftCollapsed ? 0 : leftW) - (rightCollapsed ? 0 : rightW);
+            }
+            const marginLeft = leftCollapsed ? 48 : leftW + (vw <= 1400 ? 16 : 24);
+            let marginRight;
+            if (rightCollapsed) marginRight = 48;
+            else if (vw <= 1400) marginRight = Math.max(20, rightW);
+            else marginRight = rightW + 24;
+            return vw - marginLeft - marginRight - layoutExtra();
+      }
+
+      function panelLimits() {
+            const vw = window.innerWidth;
+            const cap = Math.min(640, Math.max(180, Math.floor(vw * 0.85)));
+            const min = Math.min(180, cap);
+            return { vw, cap, min, floor: vw * 0.25 };
+      }
+
+      function layoutWidth(side) {
+            if (!countsOpen(side)) return 0;
+            const panel = panelEl(side);
+            if (panel) {
+                  const w = Math.round(panel.getBoundingClientRect().width);
+                  if (w >= 100) return w;
+            }
+            const prop = side === 'left' ? '--dg-panel-left-width' : '--dg-panel-right-width';
+            const css = parseInt(getComputedStyle(document.documentElement).getPropertyValue(prop), 10);
+            if (css) return css;
+            if (window.innerWidth <= 1000) return Math.min(250, Math.floor(window.innerWidth * 0.85));
+            return side === 'left' ? 250 : 350;
+      }
+
+      function clampPanelWidth(side, raw) {
+            const n = parseInt(raw, 10);
+            if (!n || n !== n) return 0;
+            const lim = panelLimits();
+            const other = side === 'left' ? 'right' : 'left';
+            const otherW = layoutWidth(other);
+            const hi = Math.min(lim.cap, Math.max(lim.min, n));
+            const centerAt = (width) => {
+                  const leftW = side === 'left' ? width : otherW;
+                  const rightW = side === 'right' ? width : otherW;
+                  const leftCollapsed = side === 'left' ? false : !countsOpen('left');
+                  const rightCollapsed = side === 'right' ? false : !countsOpen('right');
+                  return centerWidth(leftW, rightW, leftCollapsed, rightCollapsed, lim.vw);
+            };
+            if (centerAt(hi) >= lim.floor) return Math.max(lim.min, Math.min(lim.cap, n));
+            if (centerAt(lim.min) < lim.floor) return lim.min;
+            let low = lim.min;
+            let high = hi;
+            let best = lim.min;
+            while (low <= high) {
+                  const mid = Math.floor((low + high) / 2);
+                  if (centerAt(mid) >= lim.floor) {
+                        best = mid;
+                        low = mid + 1;
+                  } else {
+                        high = mid - 1;
+                  }
+            }
+            return best;
+      }
+
+      function fitStoredPair(left, right) {
+            const lim = panelLimits();
+            const leftOpen = countsOpen('left');
+            const rightOpen = countsOpen('right');
+            let guard = 0;
+            while (centerWidth(left, right, !leftOpen, !rightOpen, lim.vw) < lim.floor && guard < 4000) {
+                  const canLeft = leftOpen && left > lim.min;
+                  const canRight = rightOpen && right > lim.min;
+                  if (!canLeft && !canRight) break;
+                  if (canLeft && (!canRight || left >= right)) left -= 1;
+                  else right -= 1;
+                  guard += 1;
+            }
+            return { left, right };
+      }
+
+      function widthKey(side) {
+            return side === 'left' ? LEFT_WIDTH_KEY : RIGHT_WIDTH_KEY;
+      }
+
+      function widthProp(side) {
+            return side === 'left' ? '--dg-panel-left-width' : '--dg-panel-right-width';
+      }
+
+      function fileListContentHeight(list) {
+            const top = list.getBoundingClientRect().top;
+            let bottom = top;
+            list.querySelectorAll(':scope > *').forEach((child) => {
+                  if (getComputedStyle(child).display === 'none') return;
+                  const rect = child.getBoundingClientRect();
+                  if (rect.bottom > bottom) bottom = rect.bottom;
+            });
+            return bottom - top;
+      }
+
+      function syncFiletreeDeadlines() {
+            const block = document.getElementById('dg-deadlines');
+            const list = document.querySelector('.filetree-scroll');
+            const wrapper = document.querySelector('.filetree-wrapper');
+            if (!block || !list || !wrapper) return;
+            if (!block.querySelector('.deadline-line')) {
+                  block.classList.remove('dg-deadlines-compact');
+                  return;
+            }
+            if (wrapper.getBoundingClientRect().width < 24 || list.clientHeight < 24) return;
+
+            const content = fileListContentHeight(list);
+            const compact = block.classList.contains('dg-deadlines-compact');
+            if (compact) {
+                  const extra = block._deadlineExtra || 0;
+                  const spare = list.clientHeight - content;
+                  if (extra > 0 && spare > extra + 4) block.classList.remove('dg-deadlines-compact');
+                  return;
+            }
+            if (content > list.clientHeight + 1) {
+                  const full = block.offsetHeight;
+                  block.classList.add('dg-deadlines-compact');
+                  block._deadlineExtra = Math.max(0, full - block.offsetHeight);
+            }
+      }
+      window.dgSyncFiletreeDeadlines = syncFiletreeDeadlines;
+
+      function setPanelWidth(side, px, persist) {
+            const value = clampPanelWidth(side, px);
+            if (!value) return;
+            document.documentElement.style.setProperty(widthProp(side), value + 'px');
+            const handle = document.querySelector(`[data-panel-resize="${side}"]`);
+            if (handle) handle.setAttribute('aria-valuenow', String(value));
+            syncFiletreeDeadlines();
+            if (!persist) return;
+            try {
+                  localStorage.setItem(widthKey(side), String(value));
+            } catch {
+                  // ignore
+            }
+      }
+
+      function applyStoredWidths() {
+            try {
+                  const lim = panelLimits();
+                  let left = parseInt(localStorage.getItem(LEFT_WIDTH_KEY), 10) || 0;
+                  let right = parseInt(localStorage.getItem(RIGHT_WIDTH_KEY), 10) || 0;
+                  if (left) left = Math.max(lim.min, Math.min(lim.cap, left));
+                  if (right) right = Math.max(lim.min, Math.min(lim.cap, right));
+                  if (left || right) {
+                        const fitted = fitStoredPair(left || 250, right || 350);
+                        if (left) left = countsOpen('left') ? fitted.left : left;
+                        if (right) right = countsOpen('right') ? fitted.right : right;
+                  }
+                  if (left) setPanelWidth('left', left, false);
+                  if (right) setPanelWidth('right', right, false);
+            } catch {
+                  // ignore
+            }
+      }
+
+      function bindResizer(el) {
+            const side = el.getAttribute('data-panel-resize');
+            if (side !== 'left' && side !== 'right') return;
+            let startX = 0;
+            let startW = 0;
+
+            function currentWidth() {
+                  const panel = panelEl(side);
+                  return panel ? panel.getBoundingClientRect().width : 0;
+            }
+
+            function onPointerDown(evt) {
+                  if (evt.button !== undefined && evt.button !== 0) return;
+                  evt.preventDefault();
+                  evt.stopPropagation();
+                  startX = evt.clientX;
+                  startW = currentWidth();
+                  el.classList.add('is-dragging');
+                  document.documentElement.classList.add('panel-resizing');
+                  if (el.setPointerCapture) el.setPointerCapture(evt.pointerId);
+            }
+
+            function onPointerMove(evt) {
+                  if (!el.classList.contains('is-dragging')) return;
+                  const dx = evt.clientX - startX;
+                  const next = side === 'left' ? startW + dx : startW - dx;
+                  setPanelWidth(side, next, true);
+            }
+
+            function onPointerUp(evt) {
+                  if (!el.classList.contains('is-dragging')) return;
+                  el.classList.remove('is-dragging');
+                  document.documentElement.classList.remove('panel-resizing');
+                  if (el.releasePointerCapture) {
+                        try {
+                              el.releasePointerCapture(evt.pointerId);
+                        } catch {
+                              // already released
+                        }
+                  }
+            }
+
+            el.addEventListener('pointerdown', onPointerDown);
+            el.addEventListener('pointermove', onPointerMove);
+            el.addEventListener('pointerup', onPointerUp);
+            el.addEventListener('pointercancel', onPointerUp);
+            el.addEventListener('keydown', (evt) => {
+                  if (evt.key !== 'ArrowLeft' && evt.key !== 'ArrowRight') return;
+                  evt.preventDefault();
+                  const step = evt.shiftKey ? 40 : 16;
+                  const delta = evt.key === 'ArrowRight' ? step : -step;
+                  const signed = side === 'left' ? delta : -delta;
+                  setPanelWidth(side, currentWidth() + signed, true);
+            });
+      }
+
+      document.addEventListener('click', (evt) => {
+            if (evt.target.closest('[data-panel-resize]')) {
+                  evt.preventDefault();
+                  evt.stopPropagation();
+                  return;
+            }
+            const btn = evt.target.closest('[data-panel-toggle].panel-edge-toggle');
+            if (btn) {
+                  const side = btn.getAttribute('data-panel-toggle');
+                  if (side !== 'left' && side !== 'right') return;
+                  evt.preventDefault();
+                  evt.stopPropagation();
+                  setCollapsed(side, !pinnedCollapsed(side));
+                  return;
+            }
+
+            if (!isCompact()) return;
+
+            const link = evt.target.closest && evt.target.closest('a[href]');
+            if (link && !evt.button && !evt.metaKey && !evt.ctrlKey && !evt.shiftKey && !evt.altKey) {
+                  const href = link.getAttribute('href') || '';
+                  if (href && href !== '#') {
+                        if (!pinnedCollapsed('left')) setCollapsed('left', true);
+                        if (!pinnedCollapsed('right')) setCollapsed('right', true);
+                        return;
+                  }
+            }
+
+            const leftOpen = !pinnedCollapsed('left');
+            const rightOpen = !pinnedCollapsed('right');
+            if (!leftOpen && !rightOpen) return;
+
+            const inLeft = evt.target.closest('.filetree-wrapper');
+            const inRight = evt.target.closest('.sidebar#page-panel');
+            const onEdge = evt.target.closest('.panel-edge-toggle');
+
+            if (!inLeft && !inRight && !onEdge) {
+                  if (leftOpen) setCollapsed('left', true);
+                  if (rightOpen) setCollapsed('right', true);
+            }
+      }, true);
+
+      function boot() {
+            bindHover('left');
+            bindHover('right');
+            document.addEventListener('pointermove', (evt) => {
+                  if (!isDesktop()) return;
+                  if (document.documentElement.classList.contains('panel-resizing')) return;
+                  ['left', 'right'].forEach((side) => {
+                        if (!hoverPeek[side]) return;
+                        if (pointerOverSide(side, evt.clientX, evt.clientY)) cancelPeekClose(side);
+                        else schedulePeekClose(side);
+                  });
+            });
+            document.querySelectorAll('[data-panel-resize]').forEach(bindResizer);
+            applyStoredWidths();
+            applyState();
+            const tree = document.querySelector('.filetree-scroll');
+            if (tree && window.MutationObserver) {
+                  let pending = false;
+                  const observer = new MutationObserver(() => {
+                        if (pending) return;
+                        pending = true;
+                        requestAnimationFrame(() => {
+                              pending = false;
+                              syncFiletreeDeadlines();
+                        });
+                  });
+                  observer.observe(tree, { subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+            }
+            window.addEventListener('resize', syncFiletreeDeadlines);
+            syncFiletreeDeadlines();
+            window.addEventListener('load', syncFiletreeDeadlines);
+            // Lucide may load after DOMContentLoaded.
+            if (!iconsReady) {
+                  const t = setInterval(() => {
+                        ensureIcons();
+                        if (iconsReady) clearInterval(t);
+                  }, 50);
+                  setTimeout(() => clearInterval(t), 3000);
+            }
+      }
+
+      COMPACT_MQ.addEventListener('change', () => {
+            hoverPeek.left = false;
+            hoverPeek.right = false;
+            applyStoredWidths();
+            applyState();
+      });
+      window.addEventListener('resize', () => {
+            if (document.documentElement.classList.contains('panel-resizing')) return;
+            applyStoredWidths();
+      });
+      DESKTOP_MQ.addEventListener('change', () => {
+            hoverPeek.left = false;
+            hoverPeek.right = false;
+            applyState();
+      });
+
+      if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', boot);
+      } else {
+            boot();
+      }
+})();
+</script>
