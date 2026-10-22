@@ -1,5 +1,8 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, it, expect } from "vitest";
-import { getFileTree } from "./filetreeUtils.js";
+import { copyLectureMarkdown, getFileTree } from "./filetreeUtils.js";
 
 // Helper to build a minimal note object for testing
 function makeNote(filePathStem, data = {}) {
@@ -262,6 +265,42 @@ describe("filetreeUtils", () => {
       expect(tree["Добро пожаловать!.md"].permalink).toBe("/");
       expect(tree["Дедлайны"]).toBeUndefined();
       expect(tree["Лекции"].isFolder).toBe(true);
+    });
+
+    it("links lecture files to a downloadable markdown copy", () => {
+      const data = {
+        collections: {
+          note: [
+            makeNote("/Лекции/Физика/Физика 1101"),
+            makeNote("/beta"),
+          ],
+        },
+      };
+      const tree = getFileTree(data);
+      const lecture = tree["Лекции"]["Физика"]["Физика 1101.md"];
+      expect(lecture.downloadName).toBe("Физика 1101.md");
+      expect(lecture.downloadHref).toBe(
+        "/lectures/" +
+          encodeURIComponent("Физика") +
+          "/" +
+          encodeURIComponent("Физика 1101.md")
+      );
+      expect(tree["beta.md"].downloadHref).toBe("");
+    });
+
+    it("copies lecture markdown to the download path", () => {
+      const dest = fs.mkdtempSync(path.join(os.tmpdir(), "lectures-"));
+      copyLectureMarkdown(dest);
+      const copied = path.join(dest, "lectures", "Физика", "Физика 1101.md");
+      const source = path.join(
+        "src",
+        "site",
+        "notes",
+        "Лекции",
+        "Физика",
+        "Физика 1101.md"
+      );
+      expect(fs.readFileSync(copied, "utf8")).toBe(fs.readFileSync(source, "utf8"));
     });
 
     it("hides a note with hideInFiletree:true (dg-hide-in-filetree)", () => {

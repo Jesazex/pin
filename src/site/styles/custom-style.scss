@@ -83,6 +83,17 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         user-select: none !important;
     }
 
+    // Folder and file rows share one tile height.
+    a.notelink,
+    .foldername-wrapper,
+    .foldername-wrapper.align-icon {
+        box-sizing: border-box;
+        min-height: 32px;
+        margin: 1px 0;
+        padding: 4px 8px;
+        border-radius: 6px;
+    }
+
     // Whole highlighted row is the hit target (note = open file, folder = toggle).
     // Keep labels left-aligned (do not use space-evenly across full width).
     a.notelink {
@@ -91,7 +102,6 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         justify-content: flex-start;
         width: 100%;
         max-width: 100%;
-        box-sizing: border-box;
         cursor: pointer;
         text-decoration: none !important;
         color: inherit;
@@ -103,6 +113,14 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         .filename {
             pointer-events: none;
         }
+
+        // Lecture titles download the markdown file and only look like links on hover.
+        &.lecture-download:hover .filename,
+        &.lecture-download:focus-visible .filename {
+            color: var(--link-color-hover, var(--text-accent)) !important;
+            text-decoration: underline !important;
+            text-underline-offset: 0.15em;
+        }
     }
 
     .foldername-wrapper,
@@ -113,9 +131,7 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         gap: 0.2em;
         width: 100%;
         max-width: 100%;
-        box-sizing: border-box;
         cursor: pointer;
-        border-radius: 0;
 
         &:hover {
             background-color: var(--dg-notelink-hover-bg, rgba(255, 255, 255, 0.05));
@@ -126,8 +142,11 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         }
 
         .foldername {
+            flex: 1 1 auto;
             min-width: 0;
-            overflow-wrap: anywhere;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
         }
     }
 
@@ -135,12 +154,15 @@ html.dg-math-pending g[data-mml-node="mtext"] {
     > .folder > div:not(.filelist) > a.notelink,
     .filetree-scroll > div:not(.filelist) > a.notelink {
         margin-left: 0;
-        padding-left: calc(var(--dg-folder-icon-size, 14px) + 0.2em + 2px);
+        padding-left: calc(8px + var(--dg-folder-icon-size, 14px) + 0.2em);
     }
 
     .filename {
+        flex: 1 1 auto;
         min-width: 0;
-        overflow-wrap: anywhere;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
     }
 
     // Invert file-list colors: only the open note is accent-colored.
@@ -169,6 +191,21 @@ html.dg-math-pending g[data-mml-node="mtext"] {
     .filelist {
         max-width: 100%;
         box-sizing: border-box;
+    }
+
+    .inner-folder {
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+
+    // The open-folder guide line is replaced by a deeper indent on files.
+    .filelist {
+        border-left: none;
+        margin-left: 0;
+    }
+
+    .filelist:has(> a.notelink) {
+        padding-left: 22px;
     }
 
     // No Digital Garden / site-name heading in the filetree.
@@ -436,9 +473,10 @@ body:has(#dg-deadline-table) {
 
 .deadline-type-anchor {
     position: relative;
-    display: inline-block;
-    width: auto;
+    display: flex;
+    width: 100%;
     max-width: 100%;
+    height: 100%;
     vertical-align: baseline;
     pointer-events: none;
 }
@@ -446,12 +484,17 @@ body:has(#dg-deadline-table) {
 button.deadline-type-button,
 button.deadline-type-button:focus,
 button.deadline-type-button:active {
-    display: inline-block;
-    width: auto;
-    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 auto;
+    box-sizing: border-box;
+    width: 100%;
     height: auto;
+    min-width: 0;
+    min-height: 2.5em;
     margin: 0;
-    padding: 0;
+    padding: 8px 10px;
     border: none;
     border-radius: 0;
     outline: none;
@@ -495,6 +538,7 @@ button.deadline-type-button.is-pointed {
 .deadline-table-scroll th.deadline-type-head,
 .markdown-rendered .deadline-table-scroll thead tr > th.deadline-type-head {
     z-index: 6;
+    padding: 0;
 }
 
 ul.deadline-type-menu,
