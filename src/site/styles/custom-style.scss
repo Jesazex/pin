@@ -176,8 +176,21 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         color: var(--text-muted) !important;
     }
 
-    .notelink.active-note {
-        border-left-color: var(--text-accent);
+    // Open file: a straight bar, not the tile's rounded left border.
+    a.notelink.active-note {
+        border-left: var(--dg-notelink-border-width, 2px) solid transparent;
+    }
+
+    a.notelink.active-note::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: var(--dg-notelink-border-width, 2px);
+        background: var(--text-accent);
+        border-radius: 0;
+        pointer-events: none;
     }
 
     .notelink.active-note .filename {
@@ -191,6 +204,14 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         overflow-y: auto;
         overflow-x: hidden;
         overscroll-behavior: contain;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    > .folder.filetree-scroll::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
     }
 
     .inner-folder,
@@ -789,6 +810,22 @@ main.content > hr.dg-deadline-divider {
     background: none;
 }
 
+// Side menus scroll, but their bars stay hidden.
+.filetree-wrapper,
+.sidebar#page-panel,
+.sidebar-container {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.filetree-wrapper::-webkit-scrollbar,
+.sidebar#page-panel::-webkit-scrollbar,
+.sidebar-container::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
 // Right headings list flush to the right edge of the viewport.
 .sidebar {
     top: 0 !important;
@@ -823,6 +860,13 @@ main.content > hr.dg-deadline-divider {
 
     .toc-title-container {
         flex-shrink: 0;
+        // Keep the file title clear of the corner show/hide button.
+        padding-right: 56px;
+        box-sizing: border-box;
+    }
+
+    .toc-title {
+        white-space: nowrap;
     }
 
     .toc-container {
@@ -831,6 +875,14 @@ main.content > hr.dg-deadline-divider {
         max-height: none;
         overflow-y: auto;
         margin-bottom: 0;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    .toc-container::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
     }
 
     .backlinks {
@@ -847,7 +899,14 @@ main.content > hr.dg-deadline-divider {
     overflow-x: auto !important;
     overflow-y: hidden !important;
     white-space: nowrap;
-    scrollbar-width: thin;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.toc-container mjx-container::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
 }
 
 .toc-container mjx-assistive-mml {
@@ -902,8 +961,9 @@ main.content > hr.dg-deadline-divider {
 
 .content > header > h1 a.lecture-title-download:hover,
 .content > header > h1 a.lecture-title-download:focus-visible {
-    color: var(--link-color-hover, var(--text-accent)) !important;
+    color: var(--text-accent, var(--link-color-hover, var(--link-color))) !important;
     text-decoration: underline !important;
+    text-decoration-line: underline !important;
     text-underline-offset: 0.15em;
 }
 
