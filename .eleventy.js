@@ -108,6 +108,7 @@ const {
   userEleventySetup,
 } = require("./src/helpers/userSetup");
 const pluginLoader = require("./src/helpers/pluginLoader");
+const { copyLectureMarkdown } = require("./src/helpers/filetreeUtils");
 
 function getAnchorLink(filePath, linkTitle) {
   const { attributes, innerHTML } = getAnchorAttributes(filePath, linkTitle);
@@ -527,6 +528,10 @@ module.exports = function(eleventyConfig) {
       }
     }
     return content;
+  });
+
+  eleventyConfig.on("eleventy.after", () => {
+    copyLectureMarkdown("dist");
   });
 
   eleventyConfig.addPassthroughCopy("src/site/img");

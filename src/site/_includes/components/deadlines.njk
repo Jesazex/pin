@@ -140,6 +140,7 @@
 
   var typeMenu = null;
   var typeMenuTimer = null;
+  var typeMenuOpenedAt = 0;
 
   function useTypeHover() {
     return !window.matchMedia("(max-width: 1000px)").matches;
@@ -232,6 +233,7 @@
       window.removeEventListener("resize", follow);
     };
     typeMenu = menu;
+    typeMenuOpenedAt = Date.now();
     if (button) button.setAttribute("aria-expanded", "true");
   }
 
@@ -258,11 +260,15 @@
           scheduleTypeMenuClose();
         });
         button.addEventListener("click", function (event) {
-          if (useTypeHover()) return;
           event.preventDefault();
           event.stopPropagation();
-          if (typeMenu && typeMenu._owner === button) closeTypeMenu();
-          else openTypeMenu(anchor, button, typeName);
+          if (typeMenu && typeMenu._owner === button) {
+            // Desktop already opens the list on hover. A click there keeps it
+            // open. On a phone, the same header toggles the list.
+            if (!useTypeHover()) closeTypeMenu();
+            return;
+          }
+          openTypeMenu(anchor, button, typeName);
         });
       })(heads[i]);
     }
@@ -479,11 +485,22 @@
       });
       shield.addEventListener("click", function (event) {
         var target = pointAt(event);
-        if (target) target.click();
+        if (!target) return;
+        // The shield sits over the sticky header, so this click is not the
+        // button's own event. Stop it before the overlay treats it as an
+        // outside click and closes the list that target.click() just opened.
+        event.preventDefault();
+        event.stopPropagation();
+        target.click();
       });
     }
     overlay.addEventListener("click", function (event) {
-      if (typeMenu && !typeMenu.contains(event.target) && !event.target.closest(".deadline-type-head")) {
+      if (
+        typeMenu &&
+        Date.now() - typeMenuOpenedAt > 350 &&
+        !typeMenu.contains(event.target) &&
+        !(event.target.closest && event.target.closest(".deadline-type-head"))
+      ) {
         closeTypeMenu();
       }
       var link = event.target.closest && event.target.closest("a[href]");

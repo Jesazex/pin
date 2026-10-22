@@ -1,4 +1,9 @@
+const fs = require("fs");
+const path = require("path");
 const { ROOT_FOLDER } = require("./deadlinesUtils");
+
+const LECTURE_FOLDER = "Лекции";
+const LECTURE_URL_ROOT = "lectures";
 
 // Natural sort comparison - handles numbers anywhere in the string
 const naturalCompare = (a, b) => {
@@ -92,6 +97,45 @@ const sortTree = (unsorted, navigationOrder, currentPath) => {
   return orderedTree;
 };
 
+function lectureDownloadFromStem(stem) {
+  const parts = String(stem || "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter(Boolean);
+  const notesAt = parts.lastIndexOf("notes");
+  const rel = notesAt === -1 ? parts : parts.slice(notesAt + 1);
+  if (rel[0] !== LECTURE_FOLDER || rel.length < 2) return null;
+  const segments = rel.slice(1);
+  const base = segments[segments.length - 1].replace(/\.md$/i, "");
+  const downloadName = `${base}.md`;
+  const encoded = segments
+    .slice(0, -1)
+    .concat(downloadName)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return {
+    downloadHref: `/${LECTURE_URL_ROOT}/${encoded}`,
+    downloadName,
+  };
+}
+
+// Published pages are HTML. The sidebar download links point at these copies
+// of the lecture sources, under the same /lectures/ path as downloadHref.
+function copyLectureMarkdown(outputDir, sourceDir) {
+  const srcRoot =
+    sourceDir || path.join("src", "site", "notes", LECTURE_FOLDER);
+  const destRoot = path.join(outputDir, LECTURE_URL_ROOT);
+  fs.rmSync(destRoot, { recursive: true, force: true });
+  if (!fs.existsSync(srcRoot)) return destRoot;
+  fs.cpSync(srcRoot, destRoot, {
+    recursive: true,
+    filter(source) {
+      return fs.statSync(source).isDirectory() || source.endsWith(".md");
+    },
+  });
+  return destRoot;
+}
+
 function getPermalinkMeta(note, key) {
   let permalink = "/";
   let parts = note.filePathStem.split("/");
@@ -100,6 +144,8 @@ function getPermalinkMeta(note, key) {
   let hide = false;
   let pinned = false;
   let folders = null;
+  let downloadHref = "";
+  let downloadName = "";
   try {
     if (note.data.permalink) {
       permalink = note.data.permalink;
@@ -143,11 +189,21 @@ function getPermalinkMeta(note, key) {
     folders[folders.length - 1] =
       (lastFolder.endsWith(".md") ? lastFolder.slice(0, -3) : lastFolder) +
       ".md";
+    if (folders && folders[0] === LECTURE_FOLDER) {
+      const download = lectureDownloadFromStem(note.filePathStem);
+      if (download) {
+        downloadHref = download.downloadHref;
+        downloadName = download.downloadName;
+      }
+    }
   } catch {
     //ignore
   }
 
-  return [{ permalink, name, noteIcon, hide, pinned }, folders];
+  return [
+    { permalink, name, noteIcon, hide, pinned, downloadHref, downloadName },
+    folders,
+  ];
 }
 
 function assignNested(obj, keyPath, value) {
@@ -200,3 +256,5 @@ function computeFileTree(data) {
 }
 
 exports.getFileTree = getFileTree;
+exports.copyLectureMarkdown = copyLectureMarkdown;
+exports.lectureDownloadFromStem = lectureDownloadFromStem;
