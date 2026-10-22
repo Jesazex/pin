@@ -65,6 +65,9 @@
       let iconsReady = false;
       // Manual drag/keyboard resize sticks until a full reload.
       let leftWidthManual = false;
+      // Floors so "Таблица дедлайнов" and the outline title always fit.
+      let leftFloorPx = 0;
+      let rightFloorPx = 0;
       let leftFitTries = 0;
       let leftFitTimer = 0;
       let textProbe = null;
@@ -285,8 +288,14 @@
       function panelLimits() {
             const vw = window.innerWidth;
             const cap = Math.min(640, Math.max(180, Math.floor(vw * 0.85)));
-            const min = Math.min(180, cap);
-            return { vw, cap, min, floor: vw * 0.25 };
+            const base = Math.min(180, cap);
+            const leftMin = Math.min(cap, Math.max(base, leftFloorPx || 0));
+            const rightMin = Math.min(cap, Math.max(base, rightFloorPx || 0));
+            return { vw, cap, min: base, leftMin, rightMin, floor: vw * 0.25 };
+      }
+
+      function sideMin(lim, side) {
+            return side === 'left' ? lim.leftMin : lim.rightMin;
       }
 
       function layoutWidth(side) {
@@ -307,9 +316,10 @@
             const n = parseInt(raw, 10);
             if (!n || n !== n) return 0;
             const lim = panelLimits();
+            const min = sideMin(lim, side);
             const other = side === 'left' ? 'right' : 'left';
             const otherW = layoutWidth(other);
-            const hi = Math.min(lim.cap, Math.max(lim.min, n));
+            const hi = Math.min(lim.cap, Math.max(min, n));
             const centerAt = (width) => {
                   const leftW = side === 'left' ? width : otherW;
                   const rightW = side === 'right' ? width : otherW;
@@ -317,11 +327,11 @@
                   const rightCollapsed = side === 'right' ? false : !countsOpen('right');
                   return centerWidth(leftW, rightW, leftCollapsed, rightCollapsed, lim.vw);
             };
-            if (centerAt(hi) >= lim.floor) return Math.max(lim.min, Math.min(lim.cap, n));
-            if (centerAt(lim.min) < lim.floor) return lim.min;
-            let low = lim.min;
+            if (centerAt(hi) >= lim.floor) return Math.max(min, Math.min(lim.cap, n));
+            if (centerAt(min) < lim.floor) return min;
+            let low = min;
             let high = hi;
-            let best = lim.min;
+            let best = min;
             while (low <= high) {
                   const mid = Math.floor((low + high) / 2);
                   if (centerAt(mid) >= lim.floor) {
@@ -340,8 +350,8 @@
             const rightOpen = countsOpen('right');
             let guard = 0;
             while (centerWidth(left, right, !leftOpen, !rightOpen, lim.vw) < lim.floor && guard < 4000) {
-                  const canLeft = leftOpen && left > lim.min;
-                  const canRight = rightOpen && right > lim.min;
+                  const canLeft = leftOpen && left > lim.leftMin;
+                  const canRight = rightOpen && right > lim.rightMin;
                   if (!canLeft && !canRight) break;
                   if (canLeft && (!canRight || left >= right)) left -= 1;
                   else right -= 1;
@@ -415,13 +425,14 @@
       // Saved left width is only reapplied after a manual resize in this
       // page view. A reload fits the labels again.
       function applyStoredWidths() {
+            refreshPanelFloors();
             try {
                   const lim = panelLimits();
                   let right = parseInt(localStorage.getItem(RIGHT_WIDTH_KEY), 10) || 0;
-                  if (right) right = Math.max(lim.min, Math.min(lim.cap, right));
+                  if (right) right = Math.max(lim.rightMin, Math.min(lim.cap, right));
                   if (leftWidthManual) {
                         let left = parseInt(localStorage.getItem(LEFT_WIDTH_KEY), 10) || 0;
-                        if (left) left = Math.max(lim.min, Math.min(lim.cap, left));
+                        if (left) left = Math.max(lim.leftMin, Math.min(lim.cap, left));
                         if (left || right) {
                               const fitted = fitStoredPair(left || 250, right || 350);
                               if (left) left = countsOpen('left') ? fitted.left : left;
@@ -429,6 +440,7 @@
                         }
                         if (left) setPanelWidth('left', left, false);
                         if (right) setPanelWidth('right', right, false);
+                        ensureRightTitle();
                         return;
                   }
                   if (right) {
@@ -444,6 +456,49 @@
                   // ignore
             }
             fitLeftPanelToLabels();
+            ensureRightTitle();
+      }
+
+      function refreshPanelFloors() {
+            const btn = document.querySelector('.filetree-sidebar button.deadline-table-open');
+            const left = btn ? labelPanelWidth(btn) : 0;
+            if (left) leftFloorPx = left;
+            const title = document.querySelector('#page-panel .toc-title');
+            const right = title ? outlineTitleWidth(title) : 0;
+            if (right) rightFloorPx = right;
+      }
+
+      // Panel width that keeps the outline title on one line, clear of the
+      // corner toggle (the title container's right padding).
+      function outlineTitleWidth(el) {
+            const panel = panelEl('right');
+            if (!panel || panel.getBoundingClientRect().width < 24 || !labelIsShown(el)) return 0;
+            const textW = measureLabelText(el);
+            if (!textW) return 0;
+            const panelRect = panel.getBoundingClientRect();
+            const textLeft = el.getBoundingClientRect().left;
+            const container = el.closest('.toc-title-container') || el;
+            const padR = parseFloat(getComputedStyle(container).paddingRight) || 0;
+            const after = panelRect.right - container.getBoundingClientRect().right;
+            return Math.ceil(textLeft - panelRect.left + textW + padR + Math.max(0, after) + 6);
+      }
+
+      function ensureRightTitle() {
+            if (!rightFloorPx) return;
+            const panel = panelEl('right');
+            const box = panel ? Math.round(panel.getBoundingClientRect().width) : 0;
+            let current = box;
+            if (current < 24) {
+                  current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--dg-panel-right-width'), 10) || 350;
+            }
+            if (current + 2 >= rightFloorPx) return;
+            setPanelWidth('right', rightFloorPx, false);
+      }
+
+      function refitPanels() {
+            refreshPanelFloors();
+            fitLeftPanelToLabels();
+            ensureRightTitle();
       }
 
       function measureLabelText(el) {
@@ -462,6 +517,7 @@
             textProbe.style.fontWeight = cs.fontWeight;
             textProbe.style.fontStyle = cs.fontStyle;
             textProbe.style.letterSpacing = cs.letterSpacing;
+            textProbe.style.textTransform = cs.textTransform;
             textProbe.textContent = text;
             return textProbe.getBoundingClientRect().width;
       }
@@ -472,8 +528,7 @@
             if (rect.width < 1 && rect.height < 1) return false;
             let node = el;
             while (node && node !== document.body) {
-                  const cs = getComputedStyle(node);
-                  if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+                  if (getComputedStyle(node).display === 'none') return false;
                   node = node.parentElement;
             }
             return true;
@@ -660,7 +715,7 @@
                         requestAnimationFrame(() => {
                               pending = false;
                               syncFiletreeDeadlines();
-                              fitLeftPanelToLabels();
+                              refitPanels();
                         });
                   });
                   observer.observe(tree, { subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
@@ -669,14 +724,14 @@
             syncFiletreeDeadlines();
             window.addEventListener('load', () => {
                   syncFiletreeDeadlines();
-                  fitLeftPanelToLabels();
+                  refitPanels();
             });
-            requestAnimationFrame(() => requestAnimationFrame(fitLeftPanelToLabels));
+            requestAnimationFrame(() => requestAnimationFrame(refitPanels));
             if (document.fonts && document.fonts.ready) {
-                  document.fonts.ready.then(fitLeftPanelToLabels);
+                  document.fonts.ready.then(refitPanels);
             }
             document.addEventListener('alpine:initialized', () => {
-                  requestAnimationFrame(fitLeftPanelToLabels);
+                  requestAnimationFrame(refitPanels);
             });
             // Lucide may load after DOMContentLoaded.
             if (!iconsReady) {
