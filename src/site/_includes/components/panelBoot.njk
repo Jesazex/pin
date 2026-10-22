@@ -3,7 +3,6 @@
 (function () {
       var LEFT_KEY = 'dg-left-panel-collapsed';
       var RIGHT_KEY = 'dg-right-panel-collapsed';
-      var LEFT_WIDTH_KEY = 'dg-left-panel-width';
       var RIGHT_WIDTH_KEY = 'dg-right-panel-width';
       var html = document.documentElement;
 
@@ -58,14 +57,13 @@
             }
             var cap0 = Math.min(640, Math.max(180, Math.floor(window.innerWidth * 0.85)));
             var min0 = Math.min(180, cap0);
-            var leftWidth = clampBasic(localStorage.getItem(LEFT_WIDTH_KEY), min0, cap0);
+            // Left width is fitted to visible names after load. A saved width
+            // from a manual resize must not survive a refresh.
             var rightWidth = clampBasic(localStorage.getItem(RIGHT_WIDTH_KEY), min0, cap0);
-            if (leftWidth || rightWidth) {
-                  var fitted = fitOpenWidths(leftWidth || 250, rightWidth || 350, leftCollapsed, rightCollapsed, window.innerWidth);
-                  if (leftWidth) leftWidth = leftCollapsed ? leftWidth : fitted.left;
-                  if (rightWidth) rightWidth = rightCollapsed ? rightWidth : fitted.right;
+            if (rightWidth) {
+                  var fitted = fitOpenWidths(250, rightWidth, leftCollapsed, rightCollapsed, window.innerWidth);
+                  rightWidth = rightCollapsed ? rightWidth : fitted.right;
             }
-            if (leftWidth) html.style.setProperty('--dg-panel-left-width', leftWidth + 'px');
             if (rightWidth) html.style.setProperty('--dg-panel-right-width', rightWidth + 'px');
             html.classList.toggle('left-panel-collapsed', leftCollapsed);
             html.classList.toggle('right-panel-collapsed', rightCollapsed);

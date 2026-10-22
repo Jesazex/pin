@@ -63,6 +63,11 @@
       const hoverPeek = { left: false, right: false };
       const leaveTimers = { left: null, right: null };
       let iconsReady = false;
+      // Manual drag/keyboard resize sticks until a full reload.
+      let leftWidthManual = false;
+      let leftFitTries = 0;
+      let leftFitTimer = 0;
+      let textProbe = null;
 
       function isCompact() {
             return COMPACT_MQ.matches;
@@ -394,6 +399,7 @@
       function setPanelWidth(side, px, persist) {
             const value = clampPanelWidth(side, px);
             if (!value) return;
+            if (persist && side === 'left') leftWidthManual = true;
             document.documentElement.style.setProperty(widthProp(side), value + 'px');
             const handle = document.querySelector(`[data-panel-resize="${side}"]`);
             if (handle) handle.setAttribute('aria-valuenow', String(value));
@@ -406,23 +412,130 @@
             }
       }
 
+      // Saved left width is only reapplied after a manual resize in this
+      // page view. A reload fits the labels again.
       function applyStoredWidths() {
             try {
                   const lim = panelLimits();
-                  let left = parseInt(localStorage.getItem(LEFT_WIDTH_KEY), 10) || 0;
                   let right = parseInt(localStorage.getItem(RIGHT_WIDTH_KEY), 10) || 0;
-                  if (left) left = Math.max(lim.min, Math.min(lim.cap, left));
                   if (right) right = Math.max(lim.min, Math.min(lim.cap, right));
-                  if (left || right) {
-                        const fitted = fitStoredPair(left || 250, right || 350);
-                        if (left) left = countsOpen('left') ? fitted.left : left;
-                        if (right) right = countsOpen('right') ? fitted.right : right;
+                  if (leftWidthManual) {
+                        let left = parseInt(localStorage.getItem(LEFT_WIDTH_KEY), 10) || 0;
+                        if (left) left = Math.max(lim.min, Math.min(lim.cap, left));
+                        if (left || right) {
+                              const fitted = fitStoredPair(left || 250, right || 350);
+                              if (left) left = countsOpen('left') ? fitted.left : left;
+                              if (right) right = countsOpen('right') ? fitted.right : right;
+                        }
+                        if (left) setPanelWidth('left', left, false);
+                        if (right) setPanelWidth('right', right, false);
+                        return;
                   }
-                  if (left) setPanelWidth('left', left, false);
-                  if (right) setPanelWidth('right', right, false);
+                  if (right) {
+                        const wrapper = panelEl('left');
+                        const leftGuess = wrapper
+                              ? Math.round(wrapper.getBoundingClientRect().width)
+                              : 0;
+                        const fitted = fitStoredPair(leftGuess >= 100 ? leftGuess : 250, right);
+                        right = countsOpen('right') ? fitted.right : right;
+                        setPanelWidth('right', right, false);
+                  }
             } catch {
                   // ignore
             }
+            fitLeftPanelToLabels();
+      }
+
+      function measureLabelText(el) {
+            const text = el.textContent || '';
+            if (!text.trim()) return 0;
+            if (!textProbe) {
+                  textProbe = document.createElement('span');
+                  textProbe.setAttribute('aria-hidden', 'true');
+                  textProbe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;pointer-events:none;';
+                  document.body.appendChild(textProbe);
+            }
+            const cs = getComputedStyle(el);
+            textProbe.style.font = cs.font;
+            textProbe.style.fontFamily = cs.fontFamily;
+            textProbe.style.fontSize = cs.fontSize;
+            textProbe.style.fontWeight = cs.fontWeight;
+            textProbe.style.fontStyle = cs.fontStyle;
+            textProbe.style.letterSpacing = cs.letterSpacing;
+            textProbe.textContent = text;
+            return textProbe.getBoundingClientRect().width;
+      }
+
+      function labelIsShown(el) {
+            if (!el || !el.getClientRects || !el.getClientRects().length) return false;
+            const rect = el.getBoundingClientRect();
+            if (rect.width < 1 && rect.height < 1) return false;
+            let node = el;
+            while (node && node !== document.body) {
+                  const cs = getComputedStyle(node);
+                  if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+                  node = node.parentElement;
+            }
+            return true;
+      }
+
+      // Width of the left drawer so this label's text fits, including the
+      // row's own padding. Independent of the current drawer width.
+      function labelPanelWidth(el) {
+            const wrapper = panelEl('left');
+            const sidebar = document.querySelector('.filetree-sidebar');
+            if (!wrapper || !sidebar || !labelIsShown(el)) return 0;
+            const textW = measureLabelText(el);
+            if (!textW) return 0;
+            const rect = el.getBoundingClientRect();
+            const own = getComputedStyle(el);
+            const padded = el.matches('button');
+            const textLeft = rect.left + (padded ? (parseFloat(own.paddingLeft) || 0) : 0);
+            const row = padded ? el : (el.closest('a.notelink, .foldername-wrapper') || el);
+            const padR = parseFloat(getComputedStyle(row).paddingRight) || 0;
+            const sidebarPadR = parseFloat(getComputedStyle(sidebar).paddingRight) || 0;
+            const wrapperLeft = wrapper.getBoundingClientRect().left;
+            return Math.ceil(textLeft - wrapperLeft + textW + padR + sidebarPadR + 6);
+      }
+
+      function maxLabelWidth(selector) {
+            let max = 0;
+            document.querySelectorAll(selector).forEach((el) => {
+                  const width = labelPanelWidth(el);
+                  if (width > max) max = width;
+            });
+            return max;
+      }
+
+      // Resting width fits the root rows. Open folders can grow it; closing
+      // them drops back to whatever is still visible.
+      function fitLeftPanelToLabels() {
+            if (leftWidthManual) return;
+            if (document.documentElement.classList.contains('panel-resizing')) return;
+            const wrapper = panelEl('left');
+            if (!wrapper) return;
+            if (wrapper.getBoundingClientRect().width < 24) {
+                  const collapsed = document.documentElement.classList.contains('left-panel-collapsed');
+                  if (!collapsed && leftFitTries < 10) {
+                        leftFitTries += 1;
+                        clearTimeout(leftFitTimer);
+                        leftFitTimer = setTimeout(fitLeftPanelToLabels, 70);
+                  }
+                  return;
+            }
+            leftFitTries = 0;
+            const resting = maxLabelWidth(
+                  '.filetree-scroll > .deadlines-block .deadline-table-open, .filetree-scroll > div > a.notelink .filename, .filetree-scroll > div > .inner-folder > .foldername-wrapper > .foldername'
+            );
+            const visible = maxLabelWidth(
+                  '.filetree-sidebar .deadline-table-open, .filetree-sidebar .filename, .filetree-sidebar .foldername'
+            );
+            const target = Math.max(resting, visible);
+            if (!target) return;
+            const current = Math.round(wrapper.getBoundingClientRect().width);
+            const clamped = clampPanelWidth('left', target);
+            if (!clamped || Math.abs(clamped - current) <= 2) return;
+            setPanelWidth('left', target, false);
       }
 
       function bindResizer(el) {
@@ -547,13 +660,24 @@
                         requestAnimationFrame(() => {
                               pending = false;
                               syncFiletreeDeadlines();
+                              fitLeftPanelToLabels();
                         });
                   });
                   observer.observe(tree, { subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
             }
             window.addEventListener('resize', syncFiletreeDeadlines);
             syncFiletreeDeadlines();
-            window.addEventListener('load', syncFiletreeDeadlines);
+            window.addEventListener('load', () => {
+                  syncFiletreeDeadlines();
+                  fitLeftPanelToLabels();
+            });
+            requestAnimationFrame(() => requestAnimationFrame(fitLeftPanelToLabels));
+            if (document.fonts && document.fonts.ready) {
+                  document.fonts.ready.then(fitLeftPanelToLabels);
+            }
+            document.addEventListener('alpine:initialized', () => {
+                  requestAnimationFrame(fitLeftPanelToLabels);
+            });
             // Lucide may load after DOMContentLoaded.
             if (!iconsReady) {
                   const t = setInterval(() => {
