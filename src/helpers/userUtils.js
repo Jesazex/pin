@@ -6,6 +6,7 @@ const {
   controlNoteIdentity,
   getControlSubjects,
 } = require("./deadlinesUtils");
+const { lectureDownloadFromStem } = require("./filetreeUtils");
 
 const deadlinesClientSource = fs
   .readFileSync(path.join(__dirname, "deadlinesCore.js"), "utf8")
@@ -29,6 +30,9 @@ function userComputed(data) {
     controlDeadlineCandidatesJson: jsonForInlineScript(candidates),
     controlSubjectsJson: jsonForInlineScript(getControlSubjects(data)),
     controlNote: controlNoteIdentity(data),
+    lectureDownload: lectureDownloadFromStem(
+      (data.page && data.page.filePathStem) || ""
+    ),
     deadlinesClientSource,
   };
 }

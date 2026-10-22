@@ -30,7 +30,13 @@ permalink: "notes/{{ page.fileSlug | slugify }}/"
     <main class="content cm-s-obsidian print {{contentClasses}}">
       <header>
         {% if settings.dgShowInlineTitle === true %}
-          <h1 id="note-title" data-note-icon="{% if noteIcon %}{{noteIcon}}{% else %}{{meta.noteIconsSettings.default}}{% endif %}">{{ fileLabel }}</h1>
+          <h1 id="note-title" data-note-icon="{% if noteIcon %}{{noteIcon}}{% else %}{{meta.noteIconsSettings.default}}{% endif %}">
+            {% if userComputed and userComputed.lectureDownload %}
+              <a class="lecture-title-download" href="{{ userComputed.lectureDownload.downloadHref }}" download="{{ userComputed.lectureDownload.downloadName }}">{{ fileLabel }}</a>
+            {% else %}
+              {{ fileLabel }}
+            {% endif %}
+          </h1>
         {% endif %}
         <div class="header-meta">
           {% if settings.dgShowTags === true and tags %}

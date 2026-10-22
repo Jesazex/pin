@@ -6,24 +6,8 @@
         </div>
 
         <div class="search-layout no-preview" id="search-layout">
-            <div class="search-results-panel" id="search-results">
-                <span><i>{{ meta.uiStrings.searchNotStarted }}</i></span>
-            </div>
+            <div class="search-results-panel" id="search-results"></div>
         </div>
-
-        <footer class="search-box-footer">
-            <div class="navigation-hint">
-                <span><code>{{ meta.uiStrings.searchEnterHotkey }}</code>&nbsp;{{ meta.uiStrings.searchEnterHint }}</span>
-            </div>
-
-            <div class="navigation-hint">
-                <span><code>{{ meta.uiStrings.searchNavigateHotkey }}</code>&nbsp;{{ meta.uiStrings.searchNavigateHint }}</span>
-            </div>
-
-            <div class="navigation-hint">
-                <span><code>{{ meta.uiStrings.searchCloseHotkey }}</code>&nbsp;{{ meta.uiStrings.searchCloseHint }}</span>
-            </div>
-        </footer>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/flexsearch@0.7.21/dist/flexsearch.bundle.js"></script>
@@ -35,7 +19,7 @@
         const field = document.getElementById('term');
         if (field) field.value = '';
         const results = document.getElementById('search-results');
-        if (results) results.innerHTML = `<span><i>{{ meta.uiStrings.searchNotStarted }}</i></span>`;
+        if (results) results.innerHTML = "";
         window.lastSearch = '';
         window.searchResults = [];
         window.searchTerms = [];
@@ -293,7 +277,7 @@
         const searchQuery = field.value.trim();
 
         if (!searchQuery) {
-            resultsDiv.innerHTML = `<span><i>{{ meta.uiStrings.searchNotStarted }}</i></span>`;
+            resultsDiv.innerHTML = "";
             return;
         }
 

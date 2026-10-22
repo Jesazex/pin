@@ -5,9 +5,8 @@
     {%if fileOrFolder.isNote or fileOrFolder.isFolder%}
         <div x-show="isOpen" style="display:none" class="{{'filelist' if step>0}}">
             {%if fileOrFolder.isNote and not fileOrFolder.hide %}
-                <a class="notelink{% if fileOrFolder.permalink === permalink %} active-note{% endif %}{% if fileOrFolder.downloadHref %} lecture-download{% endif %}"
-                   href="{{ fileOrFolder.downloadHref or fileOrFolder.permalink }}"
-                   {% if fileOrFolder.downloadHref %}download="{{ fileOrFolder.downloadName }}" title="Скачать {{ fileOrFolder.downloadName }}"{% endif %}>
+                <a class="notelink{% if fileOrFolder.permalink === permalink %} active-note{% endif %}"
+                   href="{{fileOrFolder.permalink}}">
                     <span class="filename" data-note-icon="{{fileOrFolder.noteIcon}}">{{fileOrFolder.name}}</span>
                 </a>
             {% elif fileOrFolder.isFolder%}
@@ -56,11 +55,11 @@
         {% endfor %}
         {% set slotName = "filetree.actions" %}{% include "components/pluginSlot.njk" %}
          <div class="folder filetree-scroll" x-data="{isOpen: true}">
+               {% include "components/deadlines.njk" %}
                {%- for fileOrFolderName, fileOrFolder in filetree -%}
                   {{menuItem(fileOrFolderName, fileOrFolder, 0, fileOrFolderName)}}
                {%- endfor -%}
          </div>
-         {% include "components/deadlines.njk" %}
       </nav>
       </div>
     </div>

@@ -53,6 +53,7 @@ html.dg-math-pending g[data-mml-node="mtext"] {
 }
 
 .filetree-sidebar {
+    position: relative;
     padding-left: 8px;
     margin-left: 0;
     max-width: 100%;
@@ -68,7 +69,8 @@ html.dg-math-pending g[data-mml-node="mtext"] {
     .filename,
     .foldername,
     .notelink,
-    .foldername-wrapper {
+    .foldername-wrapper,
+    button.deadline-table-open {
         font-size: var(--dg-toc-font-size, 1rem) !important;
         line-height: 1.5;
     }
@@ -113,14 +115,6 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         .filename {
             pointer-events: none;
         }
-
-        // Lecture titles download the markdown file and only look like links on hover.
-        &.lecture-download:hover .filename,
-        &.lecture-download:focus-visible .filename {
-            color: var(--link-color-hover, var(--text-accent)) !important;
-            text-decoration: underline !important;
-            text-underline-offset: 0.15em;
-        }
     }
 
     .foldername-wrapper,
@@ -152,9 +146,21 @@ html.dg-math-pending g[data-mml-node="mtext"] {
 
     // Align root-level note labels with folder names (after chevron).
     > .folder > div:not(.filelist) > a.notelink,
-    .filetree-scroll > div:not(.filelist) > a.notelink {
+    .filetree-scroll > div:not(.filelist) > a.notelink,
+    button.deadline-table-open {
         margin-left: 0;
         padding-left: calc(8px + var(--dg-folder-icon-size, 14px) + 0.2em);
+    }
+
+    button.deadline-table-open {
+        min-height: 32px;
+        margin-top: 1px;
+        margin-bottom: 1px;
+        padding-top: 4px;
+        padding-right: 8px;
+        padding-bottom: 4px;
+        border-radius: 6px;
+        white-space: nowrap;
     }
 
     .filename {
@@ -216,11 +222,11 @@ html.dg-math-pending g[data-mml-node="mtext"] {
 
 .deadlines-block {
     flex-shrink: 0;
-    margin-top: auto;
-    padding: 12px 8px 16px;
-    border-top: 1px solid var(--background-modifier-border, rgba(128, 128, 128, 0.35));
-    font-size: 0.85rem;
-    line-height: 1.45;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: inherit;
+    line-height: inherit;
 }
 
 // When the open folders no longer fit, drop the deadline lines so the
@@ -884,6 +890,23 @@ main.content > hr.dg-deadline-divider {
     overflow-wrap: anywhere;
 }
 
+.content > header > h1 a.lecture-title-download,
+.content > header > h1 a.lecture-title-download:focus {
+    color: inherit !important;
+    font: inherit;
+    font-weight: inherit;
+    text-decoration: none !important;
+    text-decoration-line: none !important;
+    cursor: pointer;
+}
+
+.content > header > h1 a.lecture-title-download:hover,
+.content > header > h1 a.lecture-title-download:focus-visible {
+    color: var(--link-color-hover, var(--text-accent)) !important;
+    text-decoration: underline !important;
+    text-underline-offset: 0.15em;
+}
+
 .content > header .header-meta {
     justify-content: center;
 }
@@ -1067,14 +1090,20 @@ html.panel-resizing .sidebar#page-panel {
         max-width: var(--dg-panel-right) !important;
     }
 
-    // Keep search fully below the fixed corner toggle.
+    // Search sits on the same row as the corner show/hide button.
     .filetree-sidebar {
-        padding-top: 52px;
+        padding-top: 56px;
         position: relative;
     }
 
     .filetree-sidebar .search-button {
-        margin-top: 0;
+        position: absolute;
+        top: 12px;
+        left: 54px;
+        right: 10px;
+        width: auto;
+        height: 36px;
+        margin: 0;
     }
 
     // --- Pinned-closed, not hovering: hidden --------------------------------
@@ -1287,16 +1316,20 @@ html.panel-resizing .sidebar#page-panel {
     .filetree-sidebar {
         width: 100%;
         max-width: 100%;
-        // Leave room under the fixed corner Hide/Show so Search stays clear.
-        padding: 52px 10px 10px 8px;
+        padding: 56px 10px 10px 8px;
         box-sizing: border-box;
     }
 
     .filetree-sidebar .search-button {
-        width: 100%;
-        max-width: 100%;
+        position: absolute;
+        top: 12px;
+        left: 54px;
+        right: 10px;
+        width: auto;
+        max-width: none;
+        height: 36px;
         box-sizing: border-box;
-        margin: 8px 0;
+        margin: 0;
     }
 
     // Content always uses the full phone width; panels overlay on top.
