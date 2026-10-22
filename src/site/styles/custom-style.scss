@@ -85,14 +85,19 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         user-select: none !important;
     }
 
-    // Folder and file rows share one tile height.
+    // Folder and file rows share one tile height and the same box,
+    // so tiles at one nesting level stay the same length.
     a.notelink,
     .foldername-wrapper,
-    .foldername-wrapper.align-icon {
+    .foldername-wrapper.align-icon,
+    button.deadline-table-open {
         box-sizing: border-box;
+        width: 100%;
+        max-width: 100%;
         min-height: 32px;
         margin: 1px 0;
-        padding: 4px 8px;
+        padding: 2px 8px;
+        border: var(--dg-notelink-border-width, 2px) solid transparent;
         border-radius: 6px;
     }
 
@@ -102,8 +107,7 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         display: flex;
         align-items: center;
         justify-content: flex-start;
-        width: 100%;
-        max-width: 100%;
+        margin-left: 0;
         cursor: pointer;
         text-decoration: none !important;
         color: inherit;
@@ -123,8 +127,6 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         align-items: center;
         justify-content: flex-start;
         gap: 0.2em;
-        width: 100%;
-        max-width: 100%;
         cursor: pointer;
 
         &:hover {
@@ -144,23 +146,21 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         }
     }
 
-    // Align root-level note labels with folder names (after chevron).
+    // Root notes keep the same inset as every other tile (no chevron gap).
+    // Repeat the border here so the base `border-left: none` cannot drop it.
     > .folder > div:not(.filelist) > a.notelink,
     .filetree-scroll > div:not(.filelist) > a.notelink,
-    button.deadline-table-open {
+    .folder > div:not(.filelist) > a.notelink {
         margin-left: 0;
-        padding-left: calc(8px + var(--dg-folder-icon-size, 14px) + 0.2em);
+        padding-left: 8px;
+        border: var(--dg-notelink-border-width, 2px) solid transparent;
     }
 
     button.deadline-table-open {
-        min-height: 32px;
-        margin-top: 1px;
-        margin-bottom: 1px;
-        padding-top: 4px;
-        padding-right: 8px;
-        padding-bottom: 4px;
-        border-radius: 6px;
+        margin-left: 0;
+        padding-left: 8px;
         white-space: nowrap;
+        text-align: left;
     }
 
     .filename {
@@ -176,21 +176,22 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         color: var(--text-muted) !important;
     }
 
-    // Open file: a straight bar, not the tile's rounded left border.
-    a.notelink.active-note {
-        border-left: var(--dg-notelink-border-width, 2px) solid transparent;
+    // File tiles only: hover text matches the deadlines tile.
+    a.notelink:hover .filename,
+    a.notelink:focus-visible .filename {
+        color: var(--text-accent, var(--text-normal)) !important;
+    }
+
+    // Open file: the accent stroke is the edge of the rounded tile.
+    // The left side of that stroke is the vertical mark; thickness stays 2px.
+    a.notelink.active-note,
+    .folder > div:not(.filelist) > a.notelink.active-note {
+        border-color: var(--text-accent);
+        background: var(--dg-notelink-hover-bg, rgba(255, 255, 255, 0.06));
     }
 
     a.notelink.active-note::before {
-        content: "";
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: var(--dg-notelink-border-width, 2px);
-        background: var(--text-accent);
-        border-radius: 0;
-        pointer-events: none;
+        content: none;
     }
 
     .notelink.active-note .filename {
@@ -221,17 +222,16 @@ html.dg-math-pending g[data-mml-node="mtext"] {
     }
 
     .inner-folder {
+        margin-left: 0;
+        width: 100%;
         padding-top: 0;
         padding-bottom: 0;
     }
 
-    // The open-folder guide line is replaced by a deeper indent on files.
+    // One indent per nesting level, for files and folders alike.
     .filelist {
         border-left: none;
         margin-left: 0;
-    }
-
-    .filelist:has(> a.notelink) {
         padding-left: 22px;
     }
 
