@@ -158,9 +158,16 @@ html.dg-math-pending g[data-mml-node="mtext"] {
 
     button.deadline-table-open {
         margin-left: 0;
-        padding-left: 8px;
+        padding: 3px 8px 1px;
         white-space: nowrap;
         text-align: left;
+    }
+
+    .filename,
+    .foldername {
+        // The font's ink sits a pixel above the tile center.
+        position: relative;
+        top: 1px;
     }
 
     .filename {
@@ -194,9 +201,10 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         content: none;
     }
 
+    // The open file keeps the muted label. Accent text is hover-only.
     .notelink.active-note .filename {
-        color: var(--text-accent) !important;
-        font-weight: 600;
+        color: var(--text-muted) !important;
+        font-weight: inherit;
     }
 
     > .folder.filetree-scroll {
@@ -232,7 +240,7 @@ html.dg-math-pending g[data-mml-node="mtext"] {
     .filelist {
         border-left: none;
         margin-left: 0;
-        padding-left: 22px;
+        padding-left: 16px;
     }
 
     // No Digital Garden / site-name heading in the filetree.
