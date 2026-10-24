@@ -200,3 +200,26 @@ describe("keyboard layout search", () => {
     expect(sandbox.offlineSearch("gjuhtiyjcnm")).toHaveLength(1);
   });
 });
+
+describe("search highlight", () => {
+  const highlightStart = template.indexOf("function highlightPattern");
+  const highlightEnd = template.indexOf("function getContextualExcerpt");
+  const highlight = {};
+  vm.runInNewContext(template.slice(highlightStart, highlightEnd), highlight);
+
+  it("does not highlight inside the markup of an earlier term", () => {
+    const html = highlight.highlightTerms("Определение принципа", ["пр", "gh"]);
+    expect(html).toBe(
+      'О<span class="search-highlight">пр</span>еделение <span class="search-highlight">пр</span>инципа'
+    );
+    expect(html).not.toMatch(/search-hi</);
+  });
+
+  it("still highlights the swapped letters when they are real text", () => {
+    const html = highlight.highlightTerms("high принцип", ["пр", "gh"]);
+    expect(html).toBe(
+      'hi<span class="search-highlight">gh</span> <span class="search-highlight">пр</span>инцип'
+    );
+    expect(html).not.toMatch(/search-hi</);
+  });
+});

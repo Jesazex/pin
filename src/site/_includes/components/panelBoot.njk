@@ -22,8 +22,9 @@
             // at the compact cap and the script fits the headings into it.
             var quarter = Math.floor(window.innerWidth * 0.25);
             var compactCap = Math.min(640, Math.max(180, Math.floor(window.innerWidth * 0.85)));
-            if (!leftCollapsed && quarter > 0) {
-                  html.style.setProperty('--dg-panel-left-width', quarter + 'px');
+            var leftStart = compact ? compactCap : quarter;
+            if (!leftCollapsed && leftStart > 0) {
+                  html.style.setProperty('--dg-panel-left-width', leftStart + 'px');
             }
             var rightStart = compact ? compactCap : quarter;
             if (rightStart > 0) html.style.setProperty('--dg-panel-right-width', rightStart + 'px');

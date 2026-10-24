@@ -825,6 +825,24 @@ describe("deadlines folder from the home note", () => {
     expect(getControlDeadlineCandidates(data).map((item) => item.subjectName)).toEqual(["Физика"]);
   });
 
+  it("reads Deadlines from dg-note-properties", () => {
+    const data = withDeadlineHome({
+      collections: {
+        note: [
+          {
+            filePathStem: "/notes/Дедлайны/ДЗ/Физика",
+            template: { inputContent: "## На 17 сентября\n" },
+          },
+        ],
+      },
+    });
+    data.collections.note[0].data = {
+      tags: ["gardenEntry"],
+      "dg-note-properties": { Deadlines: "Дедлайны" },
+    };
+    expect(activeDeadlinesFolder(data)).toBe("Дедлайны");
+  });
+
   it("reads the published home note from disk", () => {
     const found = readPublishedDeadlines(path.join(here, "../site/notes"));
     expect(found).toEqual({ name: "Дедлайны", qualified: true });
