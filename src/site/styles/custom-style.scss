@@ -1023,7 +1023,8 @@ html:not(.dg-panel-boot) .sidebar#page-panel {
     pointer-events: none !important;
 }
 
-// Same chrome as the search field: dark fill, hairline border, same radius.
+// Search-field chrome (radius, hairline, size), but a darker fill than the
+// page so the control does not disappear into --background-primary.
 // `button` in the theme skin would otherwise paint a different control.
 button.panel-edge-toggle,
 button.panel-edge-toggle:hover,
@@ -1031,6 +1032,7 @@ button.panel-edge-toggle:focus,
 button.panel-edge-toggle:focus-visible,
 button.panel-edge-toggle:active {
     --panel-toggle-icon: var(--text-muted);
+    --panel-toggle-fill: color-mix(in srgb, var(--background-primary, rgb(32, 31, 31)) 42%, black);
     position: fixed;
     top: 12px;
     z-index: 60;
@@ -1043,8 +1045,8 @@ button.panel-edge-toggle:active {
     padding: 0;
     margin: 0;
     border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.1));
-    background: var(--background-primary);
-    background-color: var(--background-primary);
+    background: var(--panel-toggle-fill);
+    background-color: var(--panel-toggle-fill);
     box-shadow: none;
     color: var(--panel-toggle-icon);
     border-radius: var(--dg-search-btn-radius, 8px);
@@ -1060,7 +1062,7 @@ button.panel-edge-toggle:active {
 button.panel-edge-toggle:hover,
 button.panel-edge-toggle:focus-visible {
     border-color: var(--text-muted);
-    background-color: var(--background-primary);
+    background-color: color-mix(in srgb, var(--background-primary, rgb(32, 31, 31)) 62%, black);
     box-shadow: none;
 }
 
@@ -1583,6 +1585,8 @@ html.panel-resizing .sidebar#page-panel {
         pointer-events: none;
         opacity: 0;
         z-index: 1;
+        // Strength is set from scroll distance in mathText.njk (0…1). The
+        // gradient below is the full-strength look; do not snap opacity here.
     }
 
     .dg-math-fade-left {
@@ -1607,11 +1611,6 @@ html.panel-resizing .sidebar#page-panel {
             color-mix(in srgb, var(--dg-fade-bg, var(--background-primary, rgb(32, 31, 31))) 8%, transparent) 84%,
             transparent 100%
         );
-    }
-
-    .dg-math-frame.dg-math-can-left .dg-math-fade-left,
-    .dg-math-frame.dg-math-can-right .dg-math-fade-right {
-        opacity: 1;
     }
 }
 
