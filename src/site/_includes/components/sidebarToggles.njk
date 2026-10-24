@@ -416,6 +416,11 @@
       }
 
       function leftWidthBand() {
+            // Phone file list is an overlay, same as the outline: the desktop
+            // 15–25% band makes it a sliver. There it uses the outline cap.
+            if (isCompact()) {
+                  return { min: 0, max: rightWidthCap() };
+            }
             return {
                   min: Math.max(0, Math.floor(window.innerWidth * 0.15)),
                   max: quarterWidth(),

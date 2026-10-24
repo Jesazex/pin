@@ -11,8 +11,8 @@
                 </a>
             {% elif fileOrFolder.isFolder and fileOrFolder.deadlineTable %}
                 <div class="folder inner-folder deadline-folder" data-folder-key="{{ currentPath | escape }}">
-                    <button type="button" class="foldername-wrapper deadline-table-open" data-open-deadline-table>
-                        <span class="foldername">{{fileOrFolderName}}</span>
+                    <button type="button" class="notelink deadline-table-open" data-open-deadline-table>
+                        <span class="filename">{{fileOrFolderName}}</span>
                     </button>
                 </div>
             {% elif fileOrFolder.isFolder%}

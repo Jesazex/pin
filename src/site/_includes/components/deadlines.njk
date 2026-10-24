@@ -98,6 +98,7 @@
         if (rows[r + i].days === 0) tr.setAttribute("data-deadline-today", "");
         var dateCell = document.createElement("th");
         dateCell.scope = "row";
+        if (rows[r + i].days === 0) dateCell.className = "deadline-today-edge";
         var dateLink = document.createElement("a");
         dateLink.className = "deadline-date";
         dateLink.href = rows[r + i].href || "#";

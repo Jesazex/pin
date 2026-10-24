@@ -109,15 +109,27 @@
         return terms.sort((a, b) => b.length - a.length);
     }
 
-    function highlightTerms(text, terms) {
-        if (!terms || terms.length === 0 || !text) return text;
-        let result = text;
-        terms.forEach(term => {
-            const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regex = new RegExp(`(${escaped})`, 'gi');
-            result = result.replace(regex, '<span class="search-highlight">$1</span>');
+    function highlightPattern(terms) {
+        const unique = [];
+        (terms || []).forEach((term) => {
+            const value = String(term || "").trim();
+            if (value.length < 2) return;
+            if (unique.some((item) => item.toLowerCase() === value.toLowerCase())) return;
+            unique.push(value);
         });
-        return result;
+        unique.sort((a, b) => b.length - a.length);
+        if (!unique.length) return null;
+        const pattern = unique.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+        return new RegExp("(" + pattern + ")", "gi");
+    }
+
+    // One pass. A second pass would match inside the class name just inserted
+    // ("пр" swaps to "gh", which sits inside "search-highlight").
+    function highlightTerms(text, terms) {
+        if (!text) return text;
+        const regex = highlightPattern(terms);
+        if (!regex) return text;
+        return String(text).replace(regex, '<span class="search-highlight">$1</span>');
     }
 
     function getContextualExcerpt(content, terms, maxLength = 150) {
@@ -391,14 +403,12 @@
                 .replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;");
+            const regex = highlightPattern(terms);
+            if (!regex) return;
             let changed = false;
-            terms.forEach((term) => {
-                const escaped = String(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-                const regex = new RegExp("(" + escaped + ")", "gi");
-                html = html.replace(regex, function (match) {
-                    changed = true;
-                    return '<span class="search-highlight">' + match + '</span>';
-                });
+            html = html.replace(regex, function (match) {
+                changed = true;
+                return '<span class="search-highlight">' + match + '</span>';
             });
             if (!changed) return;
             const holder = document.createElement("span");
