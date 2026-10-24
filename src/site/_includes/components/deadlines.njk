@@ -2,7 +2,7 @@
 {%- if candidatesJson and candidatesJson != "[]" -%}
 <noscript><style>[data-dg-deadlines]{visibility:visible !important}</style></noscript>
 <div class="deadlines-block" id="dg-deadlines" data-dg-deadlines style="visibility:hidden">
-  <button type="button" class="deadline-table-open">Таблица дедлайнов</button>
+  <button type="button" class="deadline-table-open"><span class="tile-label">Дедлайны</span></button>
 </div>
 <script>
 (function () {
@@ -421,7 +421,7 @@
     var panel = document.createElement("div");
     panel.className = "deadline-table-panel";
     panel.setAttribute("role", "dialog");
-    panel.setAttribute("aria-label", "Таблица дедлайнов");
+    panel.setAttribute("aria-label", "Дедлайны");
     var scroll = document.createElement("div");
     scroll.className = "deadline-table-scroll";
     var tableEl = null;

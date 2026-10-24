@@ -68,6 +68,7 @@ html.dg-math-pending g[data-mml-node="mtext"] {
     // Match left file-list / folder text to right headings list size.
     .filename,
     .foldername,
+    .tile-label,
     .notelink,
     .foldername-wrapper,
     button.deadline-table-open {
@@ -108,6 +109,7 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         align-items: center;
         justify-content: flex-start;
         margin-left: 0;
+        overflow: hidden;
         cursor: pointer;
         text-decoration: none !important;
         color: inherit;
@@ -127,6 +129,7 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         align-items: center;
         justify-content: flex-start;
         gap: 0.2em;
+        overflow: hidden;
         cursor: pointer;
 
         &:hover {
@@ -140,9 +143,9 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         .foldername {
             flex: 1 1 auto;
             min-width: 0;
-            overflow: hidden;
+            overflow: visible;
             white-space: nowrap;
-            text-overflow: ellipsis;
+            text-overflow: clip;
         }
     }
 
@@ -157,25 +160,43 @@ html.dg-math-pending g[data-mml-node="mtext"] {
     }
 
     button.deadline-table-open {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
         margin-left: 0;
-        padding: 3px 8px 1px;
+        padding: 2px 8px;
         white-space: nowrap;
         text-align: left;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    // Cap-height to baseline, then the row centers that box. The gap from the
+    // tile edge to the top of the letters matches the gap down to the baseline.
+    .filename,
+    .foldername,
+    .tile-label {
+        position: relative;
+        top: 0;
+        line-height: 1;
+        text-box-trim: trim-both;
+        text-box-edge: cap alphabetic;
+        text-box: trim-both cap alphabetic;
     }
 
     .filename,
-    .foldername {
-        // The font's ink sits a pixel above the tile center.
-        position: relative;
-        top: 1px;
+    .foldername,
+    .tile-label {
+        // The row clips a name that does not fit. The label itself must stay
+        // overflow-visible so a mark above "й" is not cut by the cap-height box.
+        overflow: visible;
+        text-overflow: clip;
     }
 
     .filename {
         flex: 1 1 auto;
         min-width: 0;
-        overflow: hidden;
         white-space: nowrap;
-        text-overflow: ellipsis;
     }
 
     // Invert file-list colors: only the open note is accent-colored.
@@ -192,9 +213,12 @@ html.dg-math-pending g[data-mml-node="mtext"] {
     // Open file: the accent stroke is the edge of the rounded tile.
     // The left side of that stroke is the vertical mark; thickness stays 2px.
     a.notelink.active-note,
-    .folder > div:not(.filelist) > a.notelink.active-note {
+    a.notelink.active-note:hover,
+    .folder > div:not(.filelist) > a.notelink.active-note,
+    .folder > div:not(.filelist) > a.notelink.active-note:hover {
         border-color: var(--text-accent);
-        background: var(--dg-notelink-hover-bg, rgba(255, 255, 255, 0.06));
+        background: transparent;
+        background-color: transparent;
     }
 
     a.notelink.active-note::before {
@@ -999,7 +1023,13 @@ html:not(.dg-panel-boot) .sidebar#page-panel {
     pointer-events: none !important;
 }
 
-.panel-edge-toggle {
+// Same chrome as the search field: dark fill, hairline border, same radius.
+// `button` in the theme skin would otherwise paint a different control.
+button.panel-edge-toggle,
+button.panel-edge-toggle:hover,
+button.panel-edge-toggle:focus,
+button.panel-edge-toggle:focus-visible,
+button.panel-edge-toggle:active {
     --panel-toggle-icon: var(--text-muted);
     position: fixed;
     top: 12px;
@@ -1009,37 +1039,41 @@ html:not(.dg-panel-boot) .sidebar#page-panel {
     justify-content: center;
     width: 36px;
     height: 36px;
+    min-height: 0;
     padding: 0;
     margin: 0;
-    border: 1px solid var(--background-modifier-border, var(--background-secondary-alt, #333));
-    background: var(--background-secondary, #1e1e1e);
+    border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.1));
+    background: var(--background-primary);
+    background-color: var(--background-primary);
+    box-shadow: none;
     color: var(--panel-toggle-icon);
-    border-radius: 6px;
+    border-radius: var(--dg-search-btn-radius, 8px);
     cursor: pointer;
     line-height: 1;
+    font-size: var(--dg-search-btn-font-size, 0.85rem);
+    font-weight: inherit;
     // Stable icon color: never flash white↔black on hover / state / nav.
     transition: border-color 0.15s ease, background-color 0.15s ease;
-}
-
-.panel-edge-toggle:hover,
-.panel-edge-toggle:focus,
-.panel-edge-toggle:focus-visible,
-.panel-edge-toggle:active {
-    color: var(--panel-toggle-icon);
-    border-color: var(--text-faint);
     outline: none;
 }
 
-.panel-edge-toggle i,
-.panel-edge-toggle svg,
-.panel-edge-toggle .panel-icon,
-.panel-edge-toggle .svg-icon {
-    width: 18px;
-    height: 18px;
+button.panel-edge-toggle:hover,
+button.panel-edge-toggle:focus-visible {
+    border-color: var(--text-muted);
+    background-color: var(--background-primary);
+    box-shadow: none;
+}
+
+button.panel-edge-toggle i,
+button.panel-edge-toggle svg,
+button.panel-edge-toggle .panel-icon,
+button.panel-edge-toggle .svg-icon {
+    width: 16px;
+    height: 16px;
     color: var(--panel-toggle-icon) !important;
     stroke: var(--panel-toggle-icon) !important;
     fill: none !important;
-    opacity: 1 !important;
+    opacity: 0.7 !important;
     transition: none !important;
 }
 
@@ -1644,6 +1678,32 @@ h6.heading-flash {
         background-color: transparent;
         box-shadow: none;
     }
+}
+
+// Search preview shows the note itself. Drop the article's side margins so
+// the rendered markdown fills the preview column.
+#search-preview .content,
+#search-preview .content:not(.canvas-page) {
+    margin: 0 !important;
+    max-width: none !important;
+    width: auto !important;
+    padding: 0 !important;
+}
+
+#search-preview .content > header > h1 {
+    font-size: 1.35rem;
+    text-align: left;
+}
+
+#search-preview .preview-body {
+    color: var(--text-normal);
+}
+
+#search-preview .preview-body img,
+#search-preview .preview-body table,
+#search-preview .preview-body pre,
+#search-preview .preview-body mjx-container {
+    max-width: 100%;
 }
 
 // Netlify / Forestry badge guards (unchanged from prior PR work).

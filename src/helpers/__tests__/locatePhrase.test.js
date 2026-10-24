@@ -135,6 +135,56 @@ describe("keyboard layout search", () => {
     expect(sandbox.offlineSearch("погрешность")[0].matchId).toBe("err");
   });
 
+  it("ranks the open file, then its folder, ahead of other matches", () => {
+    sandbox.window = {
+      location: { pathname: "/lekczii/linejnaya-algebra/linal-1104/" },
+      docs: [
+        {
+          title: "Другое",
+          url: "/other/",
+          content: "плоскость",
+          sections: [{ id: "a", text: "Плоскость", body: "плоскость" }],
+          tags: [],
+        },
+        {
+          title: "Сосед тело",
+          url: "/lekczii/linejnaya-algebra/linal-1105/",
+          content: "плоскость в тексте",
+          sections: [{ id: "b", text: "Тема", body: "плоскость в тексте" }],
+          tags: [],
+        },
+        {
+          title: "Линал 1104",
+          url: "/lekczii/linejnaya-algebra/linal-1104/",
+          content: "плоскость",
+          sections: [{ id: "c", text: "Уравнение", body: "плоскость" }],
+          tags: [],
+        },
+        {
+          title: "Сосед заголовок",
+          url: "/lekczii/linejnaya-algebra/linal-1103/",
+          content: "",
+          sections: [{ id: "d", text: "Плоскость", body: "" }],
+          tags: [],
+        },
+        {
+          title: "Чужой заголовок",
+          url: "/fizika/fizika-1101/",
+          content: "",
+          sections: [{ id: "e", text: "Плоскость", body: "" }],
+          tags: [],
+        },
+      ],
+    };
+    expect(sandbox.offlineSearch("плоскость").map((doc) => doc.url)).toEqual([
+      "/lekczii/linejnaya-algebra/linal-1104/",
+      "/lekczii/linejnaya-algebra/linal-1103/",
+      "/lekczii/linejnaya-algebra/linal-1105/",
+      "/other/",
+      "/fizika/fizika-1101/",
+    ]);
+  });
+
   it("keeps a file that matches both layouts once, in the typed group", () => {
     sandbox.window = {
       docs: [

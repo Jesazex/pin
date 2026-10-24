@@ -7,6 +7,14 @@
 
         <div class="search-layout no-preview" id="search-layout">
             <div class="search-results-panel" id="search-results"></div>
+            <div class="search-preview-panel" id="search-preview">
+                <div class="preview-placeholder" id="preview-placeholder">
+                    <p>Предпросмотр файла</p>
+                </div>
+                <div class="preview-content" id="preview-content">
+                    <div class="preview-body markdown-preview-view markdown-rendered" id="preview-body"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -23,6 +31,7 @@
         window.lastSearch = '';
         window.searchResults = [];
         window.searchTerms = [];
+        if (typeof hideSearchPreview === "function") hideSearchPreview();
     }
 
     window.toggleSearch = function () {
@@ -248,6 +257,9 @@
             results.forEach(el => el.classList.remove('active'));
             results[newIndex].classList.add('active');
             results[newIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            if (window.searchResults && window.searchResults[newIndex]) {
+                showSearchPreview(window.searchResults[newIndex]);
+            }
         }
 
         const debouncedSearch = debounce(search, 200, false);
@@ -278,6 +290,7 @@
 
         if (!searchQuery) {
             resultsDiv.innerHTML = "";
+            hideSearchPreview();
             return;
         }
 
@@ -298,6 +311,7 @@
                     <p>{{ meta.uiStrings.searchNoResults }} "${searchQuery}"</p>
                 </div>
             `;
+            hideSearchPreview();
             return;
         }
 
@@ -325,9 +339,154 @@
         });
 
         resultsDiv.innerHTML = resultsHTML;
+        resultsDiv.querySelectorAll(".searchresult").forEach((el) => {
+            el.addEventListener("mouseenter", () => {
+                resultsDiv.querySelectorAll(".searchresult").forEach((node) => node.classList.remove("active"));
+                el.classList.add("active");
+                const index = Number(el.dataset.index);
+                showSearchPreview(window.searchResults[index]);
+            });
+        });
+        showSearchPreview(results[0]);
     }
 
     window.search = search;
+
+    // ===== File preview (rendered markdown) =====
+
+    const previewHtmlCache = new Map();
+    let previewToken = 0;
+
+    function noteKey(url) {
+        try {
+            const parsed = new URL(url, window.location.href);
+            return (parsed.pathname || "/").replace(/\/+$/, "") || "/";
+        } catch (e) {
+            return String(url || "").split("?")[0].split("#")[0].replace(/\/+$/, "") || "/";
+        }
+    }
+
+    function hideSearchPreview() {
+        previewToken += 1;
+        const layout = document.getElementById("search-layout");
+        if (layout) layout.classList.add("no-preview");
+        const content = document.getElementById("preview-content");
+        if (content) content.classList.remove("has-content");
+        const placeholder = document.getElementById("preview-placeholder");
+        if (placeholder) placeholder.style.display = "";
+        const body = document.getElementById("preview-body");
+        if (body) body.innerHTML = "";
+    }
+
+    function highlightPreview(root, terms) {
+        if (!root || !terms || !terms.length) return;
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        nodes.forEach((node) => {
+            const parent = node.parentElement;
+            if (!parent || !node.nodeValue || !node.nodeValue.trim()) return;
+            if (parent.closest("script, style, svg, mjx-container, .search-highlight")) return;
+            let html = node.nodeValue
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+            let changed = false;
+            terms.forEach((term) => {
+                const escaped = String(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                const regex = new RegExp("(" + escaped + ")", "gi");
+                html = html.replace(regex, function (match) {
+                    changed = true;
+                    return '<span class="search-highlight">' + match + '</span>';
+                });
+            });
+            if (!changed) return;
+            const holder = document.createElement("span");
+            holder.innerHTML = html;
+            parent.replaceChild(holder, node);
+        });
+    }
+
+    function scrollPreviewToMatch(root, matchId) {
+        const panel = document.getElementById("search-preview");
+        if (!panel || !root) return;
+        let target = null;
+        if (matchId) {
+            target = root.querySelector('[data-preview-id="' + CSS.escape(matchId) + '"]');
+        }
+        if (!target) target = root.querySelector(".search-highlight");
+        if (!target) {
+            panel.scrollTop = 0;
+            return;
+        }
+        const delta = target.getBoundingClientRect().top - panel.getBoundingClientRect().top;
+        panel.scrollTop += delta - 12;
+    }
+
+    function mountPreview(html, result) {
+        const layout = document.getElementById("search-layout");
+        const content = document.getElementById("preview-content");
+        const placeholder = document.getElementById("preview-placeholder");
+        const body = document.getElementById("preview-body");
+        if (!layout || !body) return;
+        layout.classList.remove("no-preview");
+        if (placeholder) placeholder.style.display = "none";
+        if (content) content.classList.add("has-content");
+        body.innerHTML = "";
+        const note = document.createElement("div");
+        note.className = "content preview-note";
+        note.innerHTML = html || "";
+        body.appendChild(note);
+        note.querySelectorAll("script").forEach((script) => script.remove());
+        note.querySelectorAll("[id]").forEach((el) => {
+            el.setAttribute("data-preview-id", el.id);
+            el.removeAttribute("id");
+        });
+        highlightPreview(note, window.searchTerms || []);
+        scrollPreviewToMatch(note, result && result.matchId);
+    }
+
+    async function loadPreviewHtml(url) {
+        const key = noteKey(url);
+        if (previewHtmlCache.has(key)) return previewHtmlCache.get(key);
+        let html = "";
+        if (key === noteKey(window.location.pathname)) {
+            const main = document.querySelector("main.content");
+            html = main ? main.innerHTML : "";
+        } else {
+            const response = await fetch(url, { credentials: "same-origin" });
+            if (!response.ok) throw new Error(String(response.status));
+            const doc = new DOMParser().parseFromString(await response.text(), "text/html");
+            const main = doc.querySelector("main.content");
+            html = main ? main.innerHTML : "";
+        }
+        previewHtmlCache.set(key, html);
+        return html;
+    }
+
+    function showSearchPreview(result) {
+        const token = ++previewToken;
+        if (!result) {
+            hideSearchPreview();
+            return;
+        }
+        const layout = document.getElementById("search-layout");
+        if (layout) layout.classList.remove("no-preview");
+        loadPreviewHtml(result.url).then((html) => {
+            if (token !== previewToken) return;
+            if (!html) {
+                mountPreview("<p>" + (result.content || "") + "</p>", result);
+                return;
+            }
+            mountPreview(html, result);
+        }).catch(() => {
+            if (token !== previewToken) return;
+            const plain = (result.content || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            mountPreview("<p>" + plain + "</p>", result);
+        });
+    }
+
+    window.showSearchPreview = showSearchPreview;
 
     // ===== Offline Search =====
 
@@ -377,7 +536,28 @@
         return normalizePhrase(text).includes(phrase);
     }
 
-    // Exact phrase. A heading inside the note ranks above body-only matches.
+    function notePath(url) {
+        const path = String(url || "").split("?")[0].split("#")[0];
+        const trimmed = path.replace(/\/+$/, "");
+        return trimmed || "/";
+    }
+
+    // Parent folder of a note URL. Root notes share "/".
+    function noteFolder(url) {
+        const path = notePath(url);
+        const slash = path.lastIndexOf("/");
+        if (slash <= 0) return "/";
+        return path.slice(0, slash + 1);
+    }
+
+    function currentNotePath() {
+        if (typeof window === "undefined" || !window.location || !window.location.pathname) return "";
+        return notePath(window.location.pathname);
+    }
+
+    // Exact phrase. The open file comes first, then other files in its folder.
+    // Inside each of those groups, and after them, a heading match outranks a
+    // body-only match and the typed layout outranks the swapped layout.
     // The file name is not a heading. A file without the phrase is omitted.
     function offlineSearch(searchQuery) {
         const data = window.docs || [];
@@ -397,9 +577,13 @@
         const phrases = phraseVariants(searchQuery);
         if (!phrases.length) return [];
 
-        // The layout the user actually typed comes first. Inside each layout,
-        // a heading match still outranks a body-only match.
-        const groups = phrases.map(function () {
+        const here = currentNotePath();
+        const hereFolder = here ? noteFolder(here) : "";
+        const current = [];
+        const folderGroups = phrases.map(function () {
+            return { heading: [], text: [] };
+        });
+        const restGroups = phrases.map(function () {
             return { heading: [], text: [] };
         });
         data.forEach((doc) => {
@@ -409,14 +593,26 @@
                 const result = { ...doc };
                 result.tags = (result.tags || []).filter((x) => x !== "gardenEntry" && x !== "note");
                 result.matchId = located.matchId;
-                if (located.inHeading) groups[i].heading.push(result);
-                else groups[i].text.push(result);
+                const path = notePath(result.url);
+                if (here && path === here) {
+                    current.push(result);
+                } else if (hereFolder && noteFolder(result.url) === hereFolder) {
+                    if (located.inHeading) folderGroups[i].heading.push(result);
+                    else folderGroups[i].text.push(result);
+                } else if (located.inHeading) {
+                    restGroups[i].heading.push(result);
+                } else {
+                    restGroups[i].text.push(result);
+                }
                 break;
             }
         });
 
-        let ordered = [];
-        groups.forEach(function (group) {
+        let ordered = current.slice();
+        folderGroups.forEach(function (group) {
+            ordered = ordered.concat(group.heading, group.text);
+        });
+        restGroups.forEach(function (group) {
             ordered = ordered.concat(group.heading, group.text);
         });
         return ordered;
