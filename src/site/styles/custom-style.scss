@@ -184,8 +184,8 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         color: inherit;
     }
 
-    // The line box has to include descenders (р, д) and accents (й).
-    // Centering uses the real ink, not the cap-to-baseline slice.
+    // Line box keeps descenders and accents visible. Vertical centering
+    // uses the flat letter line (а / В), not those sticking-out parts.
     .filename,
     .foldername,
     .tile-label {
@@ -1731,4 +1731,23 @@ img[src*="netlify"] {
     height: 0 !important;
     max-height: 0 !important;
     overflow: hidden !important;
+}
+
+// Hide drawers until the fitted width is set, so a refresh never flashes
+// the quarter-viewport placeholder. Article margins stay at the collapsed
+// gutter for the same moment, then both update together.
+html.dg-panel-sizing .filetree-wrapper,
+html.dg-panel-sizing .sidebar#page-panel {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transition: none !important;
+}
+
+@media (min-width: 1001px) {
+    html.dg-panel-sizing .content:not(.canvas-page) {
+        margin-left: 48px !important;
+        margin-right: 48px !important;
+        transition: none !important;
+    }
 }

@@ -600,6 +600,73 @@
             return max;
       }
 
+      function folderStoredOpen(folder) {
+            const key = folder.getAttribute('data-folder-key');
+            if (!key) return false;
+            try {
+                  return localStorage.getItem(key) === 'true';
+            } catch {
+                  return false;
+            }
+      }
+
+      // Alpine hides every row until it starts. Measure the rows that will
+      // be open anyway, then put the hide back so closed folders stay closed.
+      function withMeasurableLabels(run) {
+            const root = document.documentElement;
+            const restore = [];
+            function show(el) {
+                  if (!el || el.style.display !== 'none') return;
+                  restore.push(el);
+                  el.style.display = '';
+            }
+            document.querySelectorAll('.filetree-scroll > div').forEach(show);
+            document.querySelectorAll('.filetree-scroll .inner-folder[data-folder-key]').forEach((folder) => {
+                  if (!folderStoredOpen(folder)) return;
+                  Array.from(folder.children).forEach((child) => {
+                        if (child.classList && child.classList.contains('foldername-wrapper')) return;
+                        show(child);
+                  });
+            });
+            const wrapper = panelEl('left');
+            const collapsed = root.classList.contains('left-panel-collapsed');
+            const previous = root.style.getPropertyValue('--dg-panel-left-width');
+            let forcedWidth = false;
+            if (!collapsed && wrapper && wrapper.getBoundingClientRect().width < 24) {
+                  root.style.setProperty('--dg-panel-left-width', '320px');
+                  forcedWidth = true;
+            }
+            try {
+                  return run();
+            } finally {
+                  if (forcedWidth && root.style.getPropertyValue('--dg-panel-left-width') === '320px') {
+                        if (previous) root.style.setProperty('--dg-panel-left-width', previous);
+                        else root.style.removeProperty('--dg-panel-left-width');
+                  }
+                  restore.forEach((el) => {
+                        el.style.display = 'none';
+                  });
+            }
+      }
+
+      function revealSizedPanels() {
+            document.documentElement.classList.remove('dg-panel-sizing');
+      }
+
+      // Fit before the first paint. A quarter-width placeholder must not
+      // appear on refresh or when a note opens.
+      function primePanelWidths() {
+            try {
+                  withMeasurableLabels(() => {
+                        refreshPanelFloors();
+                        if (!leftWidthManual) fitLeftPanelToLabels();
+                        if (!rightWidthManual) fitRightPanelToHeadings();
+                  });
+            } finally {
+                  revealSizedPanels();
+            }
+      }
+
       // Resting width fits the root rows. Open folders can grow it; closing
       // them drops back to whatever is still visible.
       function fitLeftPanelToLabels() {
@@ -897,6 +964,7 @@
             applyState();
       });
 
+      primePanelWidths();
       if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', boot);
       } else {
