@@ -36,14 +36,21 @@ function isHomeNote(item) {
   return flag === true || flag === "true";
 }
 
+function deadlinesNameFrom(data) {
+  if (!data || typeof data !== "object") return "";
+  const props = data["dg-note-properties"];
+  const nested = props && typeof props === "object" ? props : {};
+  const raw = data.Deadlines != null ? data.Deadlines : nested.Deadlines;
+  const fallback = data.deadlines != null ? data.deadlines : nested.deadlines;
+  const name = typeof raw === "string" ? raw : fallback;
+  return typeof name === "string" ? name.trim() : "";
+}
+
 function deadlinesFolderName(data) {
   const notes = (data && data.collections && data.collections.note) || [];
   for (const item of notes) {
     if (!isHomeNote(item)) continue;
-    const raw = noteData(item).Deadlines;
-    const fallback = noteData(item).deadlines;
-    const name = typeof raw === "string" ? raw : fallback;
-    return typeof name === "string" ? name.trim() : "";
+    return deadlinesNameFrom(noteData(item));
   }
   return "";
 }
@@ -118,8 +125,7 @@ function readPublishedDeadlines(notesDir) {
     const flag = data && data["dg-home"];
     const home = frontmatterIsHomePage(data) || flag === true || flag === "true";
     if (!home) continue;
-    const raw = data.Deadlines != null ? data.Deadlines : data.deadlines;
-    name = typeof raw === "string" ? raw.trim() : "";
+    name = deadlinesNameFrom(data);
     break;
   }
   let qualified = false;
