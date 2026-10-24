@@ -1,0 +1,155 @@
+---
+permalink: "notes/{{ page.fileSlug | slugify }}/"
+---
+{% set fileLabel = title if title else page.fileSlug %}
+{% if userComputed and userComputed.controlNote %}
+  {% set shownName = title if title else userComputed.controlNote.subjectName %}
+  {% set fileLabel = userComputed.controlNote.typeName ~ " " ~ shownName %}
+{% endif %}
+{% set navTitle = "Главная" if ("Добро пожаловать!" in (page.filePathStem or "")) else fileLabel %}
+<!DOCTYPE html>
+<html lang="{{ meta.mainLanguage }}">
+  <head>
+    {% include "components/panelBoot.njk" %}
+    <title>{{ navTitle }}</title>
+    {%include "components/pageheader.njk"%}
+    {% set slotName = "common.head" %}{% include "components/pluginSlot.njk" %}
+    {% set slotName = "notes.head" %}{% include "components/pluginSlot.njk" %}
+    {% for imp in dynamics.common.head %}
+      {% include imp %}
+    {% endfor %}
+    {% for imp in dynamics.notes.head %}
+      {% include imp %}
+    {% endfor %}
+  </head>
+  <body class="theme-{{meta.baseTheme}} markdown-preview-view markdown-rendered markdown-preview-section {% if settings.dgShowFileTree !== true %}no-filetree{% endif %} {% if settings.dgHomeLink === true and settings.dgShowFileTree !== true %}has-navbar{% endif %} {{meta.bodyClasses}}">
+    {% set regionName = "navigation" %}
+    {% set regionFallback = "components/navbar.njk" %}
+    {% include "components/pluginRegion.njk" %}
+
+    <main class="content cm-s-obsidian print {{contentClasses}}">
+      <header>
+        {% if settings.dgShowInlineTitle === true %}
+          <h1 id="note-title" data-note-icon="{% if noteIcon %}{{noteIcon}}{% else %}{{meta.noteIconsSettings.default}}{% endif %}">
+            {% if userComputed and userComputed.lectureDownload %}
+              <a class="lecture-title-download" href="{{ userComputed.lectureDownload.downloadHref }}" download="{{ userComputed.lectureDownload.downloadName }}">{{ fileLabel }}</a>
+            {% else %}
+              {{ fileLabel }}
+            {% endif %}
+          </h1>
+        {% endif %}
+        <div class="header-meta">
+          {% if settings.dgShowTags === true and tags %}
+            <div class="header-tags">
+              {% for tag in tags %}
+                {% if tag != 'gardenEntry' and tag !='note' %}
+                  <a class="tag">
+                    #{{tag}}
+                  </a>
+                {% endif %}
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      {% set slotName = "common.header" %}{% include "components/pluginSlot.njk" %}
+      {% set slotName = "notes.header" %}{% include "components/pluginSlot.njk" %}
+      {% for imp in dynamics.common.header %}
+        {% include imp %}
+      {% endfor %}
+      {% for imp in dynamics.notes.header %}
+        {% include imp %}
+      {% endfor %}
+      </header>
+      {% set slotName = "common.beforeContent" %}{% include "components/pluginSlot.njk" %}
+      {% set slotName = "notes.beforeContent" %}{% include "components/pluginSlot.njk" %}
+      {% for imp in dynamics.common.beforeContent %}
+        {% include imp %}
+      {% endfor %}
+      {% for imp in dynamics.notes.beforeContent %}
+        {% include imp %}
+      {% endfor %}
+      {{ content | hideDataview | taggify | link | resolveMdLinks | safe}}
+      {% set slotName = "common.afterContent" %}{% include "components/pluginSlot.njk" %}
+      {% set slotName = "notes.afterContent" %}{% include "components/pluginSlot.njk" %}
+      {% for imp in dynamics.common.afterContent %}
+        {% include imp %}
+      {% endfor %}
+      {% for imp in dynamics.notes.afterContent %}
+        {% include imp %}
+      {% endfor %}
+    </main>
+    {% if userComputed and userComputed.insideDeadlines %}
+    <script>
+    (function () {
+      {{ userComputed.deadlinesClientSource | safe }}
+      var root = document.querySelector("main.content");
+      if (dgDeadlinesApi.markPastControlSections) dgDeadlinesApi.markPastControlSections(root);
+      if (dgDeadlinesApi.bindControlTaskChecks) {
+        dgDeadlinesApi.bindControlTaskChecks(root, {{ userComputed.controlNote | jsonify | safe }});
+      }
+      function refreshDeadlineHeadings() {
+        if (dgDeadlinesApi.applyControlHeadings) dgDeadlinesApi.applyControlHeadings(root);
+      }
+      refreshDeadlineHeadings();
+      document.addEventListener("DOMContentLoaded", refreshDeadlineHeadings);
+    })();
+    </script>
+    {% endif %}
+    {% if dgDayPage %}
+    <script>
+    (function () {
+      {{ userComputed.deadlinesClientSource | safe }}
+      var root = document.getElementById("dg-day-page");
+      var titleEl = document.getElementById("note-title");
+      var params = new URLSearchParams(window.location.search);
+      var catalog = {{ controlTaskCatalogJson | safe }};
+      if (!root || !dgDeadlinesApi.renderDayPage) return;
+      dgDeadlinesApi.renderDayPage(root, catalog, params.get("d"), titleEl);
+      function fillDayOutline() {
+        var outlineTitle = document.querySelector("#page-panel .toc-title");
+        if (outlineTitle && titleEl) {
+          outlineTitle.textContent = titleEl.getAttribute("data-dg-outline-title") || titleEl.textContent.replace(/\s*\([^)]*\)\s*$/, "");
+        }
+        var outline = document.querySelector("#page-panel .toc-container");
+        if (!outline) return;
+        outline.textContent = "";
+        var heads = root.querySelectorAll("h2[id]");
+        if (!heads.length) return;
+        var list = document.createElement("ol");
+        for (var i = 0; i < heads.length; i++) {
+          var item = document.createElement("li");
+          var link = document.createElement("a");
+          link.href = "#" + heads[i].id;
+          link.textContent = heads[i].textContent;
+          item.appendChild(link);
+          list.appendChild(item);
+        }
+        outline.appendChild(list);
+        document.dispatchEvent(new CustomEvent("dg-toc-refresh"));
+      }
+      if (document.querySelector("#page-panel .toc-container")) fillDayOutline();
+      else document.addEventListener("DOMContentLoaded", fillDayOutline);
+    })();
+    </script>
+    {% endif %}
+
+    {# In-page headings outline (TOC) is shown in the right sidebar. #}
+    {% if settings.dgShowToc === true or dynamics.sidebar.top.length > 0 or dynamics.sidebar.bottom.length > 0 or plugins.slots["sidebar.top"] or plugins.slots["sidebar.bottom"] %}
+      {%include "components/sidebar.njk"%}
+    {% endif %}
+    {% include "components/floatingActions.njk" %}
+    {% include "components/sidebarToggles.njk" %}
+
+    {% include "components/references.njk" %}
+    {% include "components/mathText.njk" %}
+    {% set slotName = "common.footer" %}{% include "components/pluginSlot.njk" %}
+    {% set slotName = "notes.footer" %}{% include "components/pluginSlot.njk" %}
+    {% for imp in dynamics.common.footer %}
+      {% include imp %}
+    {% endfor %}
+    {% for imp in dynamics.notes.footer %}
+      {% include imp %}
+    {% endfor %}
+    {%include "components/lucideIcons.njk"%}
+  </body>
+</html>

@@ -1,0 +1,906 @@
+{#- Fixed corner icon-only toggles + desktop hover-peek + mobile tap-close. -#}
+<button type="button"
+        class="panel-edge-toggle panel-edge-toggle-left"
+        data-panel-toggle="left"
+        aria-label="Toggle file list"
+        title="Toggle file list">
+      <i data-lucide="chevron-right" class="panel-icon panel-icon-closed" aria-hidden="true"></i>
+      <i data-lucide="chevron-left" class="panel-icon panel-icon-open" aria-hidden="true"></i>
+</button>
+<button type="button"
+        class="panel-edge-toggle panel-edge-toggle-right"
+        data-panel-toggle="right"
+        aria-label="Toggle outline"
+        title="Toggle outline">
+      <i data-lucide="chevron-left" class="panel-icon panel-icon-closed" aria-hidden="true"></i>
+      <i data-lucide="chevron-right" class="panel-icon panel-icon-open" aria-hidden="true"></i>
+</button>
+
+<script>
+(function () {
+      function overflowYScrolls(el) {
+            if (!el || el === document.body || el === document.documentElement) return false;
+            var oy = getComputedStyle(el).overflowY;
+            return oy === "auto" || oy === "scroll" || oy === "overlay";
+      }
+
+      function canConsumeWheel(el, deltaY) {
+            if (!overflowYScrolls(el) || el.scrollHeight <= el.clientHeight + 1) return false;
+            if (deltaY > 0) return el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+            if (deltaY < 0) return el.scrollTop > 0;
+            return false;
+      }
+
+      function wheelConsumer(start, boundary, deltaY) {
+            var el = start && start.nodeType === 1 ? start : start && start.parentElement;
+            while (el && el !== boundary && el !== document.body && el !== document.documentElement) {
+                  if (canConsumeWheel(el, deltaY)) return el;
+                  el = el.parentElement;
+            }
+            return null;
+      }
+
+      // The file list and the open deadline table keep the article from scrolling.
+      document.addEventListener("wheel", function (event) {
+            if (!event.deltaY) return;
+            var table = document.getElementById("dg-deadline-table");
+            if (table) {
+                  if (!wheelConsumer(event.target, table, event.deltaY)) event.preventDefault();
+                  return;
+            }
+            var list = event.target.closest && event.target.closest(".filetree-scroll");
+            if (!list) return;
+            if (!wheelConsumer(event.target, list.parentElement, event.deltaY)) event.preventDefault();
+      }, { capture: true, passive: false });
+
+      const LEFT_KEY = 'dg-left-panel-collapsed';
+      const RIGHT_KEY = 'dg-right-panel-collapsed';
+      const LEFT_WIDTH_KEY = 'dg-left-panel-width';
+      const RIGHT_WIDTH_KEY = 'dg-right-panel-width';
+      const COMPACT_MQ = window.matchMedia('(max-width: 1000px)');
+      const DESKTOP_MQ = window.matchMedia('(min-width: 1001px)');
+
+      const hoverPeek = { left: false, right: false };
+      const leaveTimers = { left: null, right: null };
+      let iconsReady = false;
+      // Manual drag/keyboard resize sticks until a full reload.
+      let leftWidthManual = false;
+      let rightWidthManual = false;
+      // Floors so "Дедлайны" and the outline title always fit.
+      let leftFloorPx = 0;
+      let rightFloorPx = 0;
+      let leftFitTries = 0;
+      let leftFitTimer = 0;
+      let rightFitTries = 0;
+      let rightFitTimer = 0;
+      let textProbe = null;
+      let outlineProbe = null;
+
+      function isCompact() {
+            return COMPACT_MQ.matches;
+      }
+
+      function isDesktop() {
+            return DESKTOP_MQ.matches;
+      }
+
+      function storageKey(side) {
+            return side === 'left' ? LEFT_KEY : RIGHT_KEY;
+      }
+
+      function readCollapsed(key) {
+            try {
+                  const value = sessionStorage.getItem(key);
+                  if (value === null) {
+                        // The file list starts open. The outline starts closed.
+                        return key !== LEFT_KEY;
+                  }
+                  return value === '1';
+            } catch {
+                  return key !== LEFT_KEY;
+            }
+      }
+
+      function writeCollapsed(key, value) {
+            try {
+                  sessionStorage.setItem(key, value ? '1' : '0');
+            } catch {
+                  // ignore
+            }
+      }
+
+      function pinnedCollapsed(side) {
+            return readCollapsed(storageKey(side));
+      }
+
+      function toggleBtn(side) {
+            return document.querySelector(`.panel-edge-toggle[data-panel-toggle="${side}"]`);
+      }
+
+      function panelEl(side) {
+            return side === 'left'
+                  ? document.querySelector('.filetree-wrapper')
+                  : document.querySelector('.sidebar#page-panel');
+      }
+
+      function ensureIcons() {
+            if (iconsReady) return;
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                  document.querySelectorAll('.panel-edge-toggle').forEach((btn) => {
+                        window.lucide.createIcons({
+                              nodes: [btn],
+                              attrs: { class: ['svg-icon'] },
+                        });
+                  });
+                  iconsReady = true;
+            }
+      }
+
+      function applyState() {
+            let leftPinned = pinnedCollapsed('left');
+            let rightPinned = pinnedCollapsed('right');
+
+            if (isCompact() && !leftPinned && !rightPinned) {
+                  rightPinned = true;
+                  writeCollapsed(RIGHT_KEY, true);
+            }
+
+            const leftPeek = isDesktop() && hoverPeek.left;
+            const rightPeek = isDesktop() && hoverPeek.right;
+            const root = document.documentElement;
+
+            root.classList.toggle('left-panel-collapsed', leftPinned);
+            root.classList.toggle('right-panel-collapsed', rightPinned);
+            root.classList.toggle('left-panel-peek', leftPeek && leftPinned);
+            root.classList.toggle('right-panel-peek', rightPeek && rightPinned);
+            root.classList.toggle('compact-panels', isCompact());
+            root.classList.add('dg-panel-boot');
+
+            document.body.classList.toggle('left-panel-collapsed', leftPinned);
+            document.body.classList.toggle('right-panel-collapsed', rightPinned);
+            document.body.classList.toggle('left-panel-peek', leftPeek && leftPinned);
+            document.body.classList.toggle('right-panel-peek', rightPeek && rightPinned);
+            document.body.classList.toggle('compact-panels', isCompact());
+
+            // Icons are swapped via CSS; only create lucide SVGs once.
+            ensureIcons();
+      }
+
+      function setCollapsed(side, collapsed) {
+            if (isCompact() && !collapsed) {
+                  writeCollapsed(LEFT_KEY, side !== 'left');
+                  writeCollapsed(RIGHT_KEY, side !== 'right');
+            } else {
+                  writeCollapsed(storageKey(side), collapsed);
+            }
+            hoverPeek[side] = false;
+            applyState();
+            applyStoredWidths();
+      }
+
+      function setHoverPeek(side, on) {
+            if (!isDesktop()) {
+                  hoverPeek.left = false;
+                  hoverPeek.right = false;
+                  return;
+            }
+            if (on && !pinnedCollapsed(side)) {
+                  hoverPeek[side] = false;
+                  applyState();
+                  return;
+            }
+            hoverPeek[side] = !!on;
+            applyState();
+      }
+
+      function relatedStillInside(side, related) {
+            if (!related || !(related instanceof Node)) return false;
+            const panel = panelEl(side);
+            const btn = toggleBtn(side);
+            return (panel && panel.contains(related)) || (btn && btn.contains(related));
+      }
+
+      // The panels sit flush with the viewport. Hitting that outer edge makes
+      // the browser fire pointerleave (the pointer is "outside" the document)
+      // even though the cursor is still on the menu. Treat a band past that
+      // edge as part of the panel so the peek stays open.
+      function pointerOverSide(side, x, y) {
+            if (typeof x !== 'number' || typeof y !== 'number') return false;
+            const panel = panelEl(side);
+            const btn = toggleBtn(side);
+            function over(el, extendOuter) {
+                  if (!el) return false;
+                  const r = el.getBoundingClientRect();
+                  if (r.width < 1 || r.height < 1) return false;
+                  let left = r.left - 2;
+                  let right = r.right + 2;
+                  const top = r.top - 2;
+                  const bottom = r.bottom + 2;
+                  if (extendOuter && side === 'left') left = Math.min(left, -40);
+                  if (extendOuter && side === 'right') right = Math.max(right, window.innerWidth + 40);
+                  return x >= left && x <= right && y >= top && y <= bottom;
+            }
+            return over(panel, true) || over(btn, false);
+      }
+
+      function cancelPeekClose(side) {
+            clearTimeout(leaveTimers[side]);
+            leaveTimers[side] = null;
+      }
+
+      function schedulePeekClose(side) {
+            if (leaveTimers[side]) return;
+            leaveTimers[side] = setTimeout(() => {
+                  leaveTimers[side] = null;
+                  setHoverPeek(side, false);
+            }, 80);
+      }
+
+      function bindHover(side) {
+            const onEnter = () => {
+                  if (!isDesktop()) return;
+                  cancelPeekClose(side);
+                  setHoverPeek(side, true);
+            };
+            const onLeave = (evt) => {
+                  if (!isDesktop()) return;
+                  if (document.documentElement.classList.contains('panel-resizing')) return;
+                  if (relatedStillInside(side, evt.relatedTarget)) return;
+                  if (pointerOverSide(side, evt.clientX, evt.clientY)) return;
+                  schedulePeekClose(side);
+            };
+
+            const btn = toggleBtn(side);
+            const panel = panelEl(side);
+            if (btn) {
+                  btn.addEventListener('pointerenter', onEnter);
+                  btn.addEventListener('pointerleave', onLeave);
+            }
+            if (panel) {
+                  panel.addEventListener('pointerenter', onEnter);
+                  panel.addEventListener('pointerleave', onLeave);
+            }
+      }
+
+      function countsOpen(side) {
+            const root = document.documentElement;
+            const collapsed = root.classList.contains(side === 'left' ? 'left-panel-collapsed' : 'right-panel-collapsed');
+            if (!collapsed) return true;
+            return root.classList.contains(side === 'left' ? 'left-panel-peek' : 'right-panel-peek');
+      }
+
+      // Article (or the strip not covered by an overlay panel) stays >= 25vw.
+      function layoutExtra() {
+            if (window.innerWidth <= 1000 || !document.body) return 0;
+            const cs = getComputedStyle(document.body);
+            const pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+            const gutter = Math.max(0, window.innerWidth - document.body.clientWidth);
+            return pad + gutter;
+      }
+
+      function centerWidth(leftW, rightW, leftCollapsed, rightCollapsed, vw) {
+            if (vw <= 1000) {
+                  return vw - (leftCollapsed ? 0 : leftW) - (rightCollapsed ? 0 : rightW);
+            }
+            const marginLeft = leftCollapsed ? 48 : leftW + (vw <= 1400 ? 16 : 24);
+            let marginRight;
+            if (rightCollapsed) marginRight = 48;
+            else if (vw <= 1400) marginRight = Math.max(20, rightW);
+            else marginRight = rightW + 24;
+            return vw - marginLeft - marginRight - layoutExtra();
+      }
+
+      function panelLimits() {
+            const vw = window.innerWidth;
+            const cap = Math.min(640, Math.max(180, Math.floor(vw * 0.85)));
+            const base = Math.min(180, cap);
+            const leftMin = Math.min(cap, Math.max(base, leftFloorPx || 0));
+            const rightMin = Math.min(cap, Math.max(base, rightFloorPx || 0));
+            return { vw, cap, min: base, leftMin, rightMin, floor: vw * 0.25 };
+      }
+
+      function sideMin(lim, side) {
+            return side === 'left' ? lim.leftMin : lim.rightMin;
+      }
+
+      function layoutWidth(side) {
+            if (!countsOpen(side)) return 0;
+            const panel = panelEl(side);
+            if (panel) {
+                  const w = Math.round(panel.getBoundingClientRect().width);
+                  if (w >= 100) return w;
+            }
+            const prop = side === 'left' ? '--dg-panel-left-width' : '--dg-panel-right-width';
+            const css = parseInt(getComputedStyle(document.documentElement).getPropertyValue(prop), 10);
+            if (css) return css;
+            if (window.innerWidth <= 1000) return Math.min(250, Math.floor(window.innerWidth * 0.85));
+            return side === 'left' ? 250 : 350;
+      }
+
+      function clampPanelWidth(side, raw) {
+            const n = parseInt(raw, 10);
+            if (!n || n !== n) return 0;
+            const lim = panelLimits();
+            const min = sideMin(lim, side);
+            const other = side === 'left' ? 'right' : 'left';
+            const otherW = layoutWidth(other);
+            const hi = Math.min(lim.cap, Math.max(min, n));
+            const centerAt = (width) => {
+                  const leftW = side === 'left' ? width : otherW;
+                  const rightW = side === 'right' ? width : otherW;
+                  const leftCollapsed = side === 'left' ? false : !countsOpen('left');
+                  const rightCollapsed = side === 'right' ? false : !countsOpen('right');
+                  return centerWidth(leftW, rightW, leftCollapsed, rightCollapsed, lim.vw);
+            };
+            if (centerAt(hi) >= lim.floor) return Math.max(min, Math.min(lim.cap, n));
+            if (centerAt(min) < lim.floor) return min;
+            let low = min;
+            let high = hi;
+            let best = min;
+            while (low <= high) {
+                  const mid = Math.floor((low + high) / 2);
+                  if (centerAt(mid) >= lim.floor) {
+                        best = mid;
+                        low = mid + 1;
+                  } else {
+                        high = mid - 1;
+                  }
+            }
+            return best;
+      }
+
+      function fitStoredPair(left, right) {
+            const lim = panelLimits();
+            const leftOpen = countsOpen('left');
+            const rightOpen = countsOpen('right');
+            let guard = 0;
+            while (centerWidth(left, right, !leftOpen, !rightOpen, lim.vw) < lim.floor && guard < 4000) {
+                  const canLeft = leftOpen && left > lim.leftMin;
+                  const canRight = rightOpen && right > lim.rightMin;
+                  if (!canLeft && !canRight) break;
+                  if (canLeft && (!canRight || left >= right)) left -= 1;
+                  else right -= 1;
+                  guard += 1;
+            }
+            return { left, right };
+      }
+
+      function widthKey(side) {
+            return side === 'left' ? LEFT_WIDTH_KEY : RIGHT_WIDTH_KEY;
+      }
+
+      function widthProp(side) {
+            return side === 'left' ? '--dg-panel-left-width' : '--dg-panel-right-width';
+      }
+
+      function fileListContentHeight(list) {
+            const top = list.getBoundingClientRect().top;
+            let bottom = top;
+            list.querySelectorAll(':scope > *').forEach((child) => {
+                  if (getComputedStyle(child).display === 'none') return;
+                  const rect = child.getBoundingClientRect();
+                  if (rect.bottom > bottom) bottom = rect.bottom;
+            });
+            return bottom - top;
+      }
+
+      function syncFiletreeDeadlines() {
+            const block = document.getElementById('dg-deadlines');
+            const list = document.querySelector('.filetree-scroll');
+            const wrapper = document.querySelector('.filetree-wrapper');
+            if (!block || !list || !wrapper) return;
+            if (!block.querySelector('.deadline-line')) {
+                  block.classList.remove('dg-deadlines-compact');
+                  return;
+            }
+            if (wrapper.getBoundingClientRect().width < 24 || list.clientHeight < 24) return;
+
+            const content = fileListContentHeight(list);
+            const compact = block.classList.contains('dg-deadlines-compact');
+            if (compact) {
+                  const extra = block._deadlineExtra || 0;
+                  const spare = list.clientHeight - content;
+                  if (extra > 0 && spare > extra + 4) block.classList.remove('dg-deadlines-compact');
+                  return;
+            }
+            if (content > list.clientHeight + 1) {
+                  const full = block.offsetHeight;
+                  block.classList.add('dg-deadlines-compact');
+                  block._deadlineExtra = Math.max(0, full - block.offsetHeight);
+            }
+      }
+      window.dgSyncFiletreeDeadlines = syncFiletreeDeadlines;
+
+      function quarterWidth() {
+            return Math.max(0, Math.floor(window.innerWidth * 0.25));
+      }
+
+      function leftWidthBand() {
+            // Phone file list is an overlay, same as the outline: the desktop
+            // 15–25% band makes it a sliver. There it uses the outline cap.
+            if (isCompact()) {
+                  return { min: 0, max: rightWidthCap() };
+            }
+            return {
+                  min: Math.max(0, Math.floor(window.innerWidth * 0.15)),
+                  max: quarterWidth(),
+            };
+      }
+
+      // Phone outline is an overlay, so the desktop quarter cap makes it a
+      // sliver. There it may grow up to the usual panel cap.
+      function rightWidthCap() {
+            if (isCompact()) {
+                  return Math.min(640, Math.max(180, Math.floor(window.innerWidth * 0.85)));
+            }
+            return quarterWidth();
+      }
+
+      function setPanelWidth(side, px, persist) {
+            const value = clampPanelWidth(side, px);
+            if (!value) return;
+            if (persist && side === 'left') leftWidthManual = true;
+            if (persist && side === 'right') rightWidthManual = true;
+            document.documentElement.style.setProperty(widthProp(side), value + 'px');
+            const handle = document.querySelector(`[data-panel-resize="${side}"]`);
+            if (handle) handle.setAttribute('aria-valuenow', String(value));
+            syncFiletreeDeadlines();
+            if (!persist) return;
+            try {
+                  localStorage.setItem(widthKey(side), String(value));
+            } catch {
+                  // ignore
+            }
+      }
+
+      // Auto width may be wider than the headings need (the 180px floor) but
+      // never wider than a quarter of the viewport. A manual drag uses
+      // setPanelWidth instead, so it can stay wider than that quarter until
+      // the next reload.
+      function setAutoLeftWidth(px) {
+            let value = clampPanelWidth('left', px);
+            const band = leftWidthBand();
+            if (band.max > 0 && value > band.max) value = band.max;
+            if (band.min > 0 && value < band.min) value = band.min;
+            if (!value) return;
+            const panel = panelEl('left');
+            const current = panel ? Math.round(panel.getBoundingClientRect().width) : 0;
+            if (current >= 24 && Math.abs(value - current) <= 2) return;
+            document.documentElement.style.setProperty('--dg-panel-left-width', value + 'px');
+            const handle = document.querySelector('[data-panel-resize="left"]');
+            if (handle) handle.setAttribute('aria-valuenow', String(value));
+            syncFiletreeDeadlines();
+      }
+
+      function setAutoRightWidth(px) {
+            let value = clampPanelWidth('right', px);
+            const cap = rightWidthCap();
+            if (cap > 0 && value > cap) value = cap;
+            if (!value) return;
+            const panel = panelEl('right');
+            const current = panel ? Math.round(panel.getBoundingClientRect().width) : 0;
+            if (current >= 24 && Math.abs(value - current) <= 2) return;
+            document.documentElement.style.setProperty('--dg-panel-right-width', value + 'px');
+            const handle = document.querySelector('[data-panel-resize="right"]');
+            if (handle) handle.setAttribute('aria-valuenow', String(value));
+            syncFiletreeDeadlines();
+      }
+
+      // Saved widths are only reapplied after a manual resize in this page
+      // view. A reload fits the labels and the outline again.
+      function applyStoredWidths() {
+            refreshPanelFloors();
+            try {
+                  const lim = panelLimits();
+                  let left = 0;
+                  let right = 0;
+                  if (leftWidthManual) {
+                        left = parseInt(localStorage.getItem(LEFT_WIDTH_KEY), 10) || 0;
+                        if (left) left = Math.max(lim.leftMin, Math.min(lim.cap, left));
+                  }
+                  if (rightWidthManual) {
+                        right = parseInt(localStorage.getItem(RIGHT_WIDTH_KEY), 10) || 0;
+                        if (right) right = Math.max(lim.rightMin, Math.min(lim.cap, right));
+                  }
+                  if (left || right) {
+                        const fitted = fitStoredPair(
+                              left || layoutWidth('left') || 250,
+                              right || layoutWidth('right') || 350
+                        );
+                        if (left && countsOpen('left')) left = fitted.left;
+                        if (right && countsOpen('right')) right = fitted.right;
+                        if (left) setPanelWidth('left', left, false);
+                        if (right) setPanelWidth('right', right, false);
+                  }
+            } catch {
+                  // ignore
+            }
+            if (!leftWidthManual) fitLeftPanelToLabels();
+            if (!rightWidthManual) fitRightPanelToHeadings();
+      }
+
+      function refreshPanelFloors() {
+            const btn = document.querySelector('.filetree-sidebar button.deadline-table-open');
+            const left = btn ? labelPanelWidth(btn) : 0;
+            if (left) leftFloorPx = left;
+            const title = document.querySelector('#page-panel .toc-title');
+            const right = title ? outlinePanelWidth(title) : 0;
+            const cap = rightWidthCap();
+            // A very long title must not force the drawer past its cap.
+            // The floor is only a minimum; a drag can still go wider.
+            if (right) rightFloorPx = cap > 0 ? Math.min(right, cap) : right;
+            const band = leftWidthBand();
+            if (left && band.max > 0) leftFloorPx = Math.min(leftFloorPx, band.max);
+      }
+
+      function refitPanels() {
+            refreshPanelFloors();
+            fitLeftPanelToLabels();
+            fitRightPanelToHeadings();
+      }
+
+      function measureLabelText(el) {
+            const text = el.textContent || '';
+            if (!text.trim()) return 0;
+            if (!textProbe) {
+                  textProbe = document.createElement('span');
+                  textProbe.setAttribute('aria-hidden', 'true');
+                  textProbe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;pointer-events:none;';
+                  document.body.appendChild(textProbe);
+            }
+            const cs = getComputedStyle(el);
+            textProbe.style.font = cs.font;
+            textProbe.style.fontFamily = cs.fontFamily;
+            textProbe.style.fontSize = cs.fontSize;
+            textProbe.style.fontWeight = cs.fontWeight;
+            textProbe.style.fontStyle = cs.fontStyle;
+            textProbe.style.letterSpacing = cs.letterSpacing;
+            textProbe.style.textTransform = cs.textTransform;
+            textProbe.textContent = text;
+            return textProbe.getBoundingClientRect().width;
+      }
+
+      function labelIsShown(el) {
+            if (!el || !el.getClientRects || !el.getClientRects().length) return false;
+            const rect = el.getBoundingClientRect();
+            if (rect.width < 1 && rect.height < 1) return false;
+            let node = el;
+            while (node && node !== document.body) {
+                  if (getComputedStyle(node).display === 'none') return false;
+                  node = node.parentElement;
+            }
+            return true;
+      }
+
+      // Width of the left drawer so this label's text fits, including the
+      // row's own padding. Independent of the current drawer width.
+      function labelPanelWidth(el) {
+            const wrapper = panelEl('left');
+            const sidebar = document.querySelector('.filetree-sidebar');
+            if (!wrapper || !sidebar || !labelIsShown(el)) return 0;
+            const textW = measureLabelText(el);
+            if (!textW) return 0;
+            const rect = el.getBoundingClientRect();
+            const own = getComputedStyle(el);
+            const padded = el.matches('button');
+            const textLeft = rect.left + (padded ? (parseFloat(own.paddingLeft) || 0) : 0);
+            const row = padded ? el : (el.closest('a.notelink, .foldername-wrapper') || el);
+            const padR = parseFloat(getComputedStyle(row).paddingRight) || 0;
+            const sidebarPadR = parseFloat(getComputedStyle(sidebar).paddingRight) || 0;
+            const wrapperLeft = wrapper.getBoundingClientRect().left;
+            return Math.ceil(textLeft - wrapperLeft + textW + padR + sidebarPadR + 6);
+      }
+
+      function maxLabelWidth(selector) {
+            let max = 0;
+            document.querySelectorAll(selector).forEach((el) => {
+                  const width = labelPanelWidth(el);
+                  if (width > max) max = width;
+            });
+            return max;
+      }
+
+      // Resting width fits the root rows. Open folders can grow it; closing
+      // them drops back to whatever is still visible.
+      function fitLeftPanelToLabels() {
+            if (leftWidthManual) return;
+            if (document.documentElement.classList.contains('panel-resizing')) return;
+            const wrapper = panelEl('left');
+            if (!wrapper) return;
+            if (wrapper.getBoundingClientRect().width < 24) {
+                  const collapsed = document.documentElement.classList.contains('left-panel-collapsed');
+                  if (!collapsed && leftFitTries < 10) {
+                        leftFitTries += 1;
+                        clearTimeout(leftFitTimer);
+                        leftFitTimer = setTimeout(fitLeftPanelToLabels, 70);
+                  }
+                  return;
+            }
+            leftFitTries = 0;
+            const resting = maxLabelWidth(
+                  '.filetree-scroll > .deadlines-block .deadline-table-open, .filetree-scroll > div > a.notelink .filename, .filetree-scroll > div > .inner-folder > .foldername-wrapper > .foldername'
+            );
+            const visible = maxLabelWidth(
+                  '.filetree-sidebar .deadline-table-open, .filetree-sidebar .filename, .filetree-sidebar .foldername'
+            );
+            const target = Math.max(resting, visible);
+            if (!target) return;
+            setAutoLeftWidth(target);
+      }
+
+      // Natural width of a title or TOC row, including a formula SVG. The
+      // live row is clipped by the panel (and mjx max-width), so measure a
+      // clone that is not inside .toc-container.
+      function measureOutlineContent(el) {
+            if (!outlineProbe) {
+                  outlineProbe = document.createElement('div');
+                  outlineProbe.setAttribute('aria-hidden', 'true');
+                  outlineProbe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;width:max-content;max-width:none;pointer-events:none;';
+                  document.body.appendChild(outlineProbe);
+            }
+            const cs = getComputedStyle(el);
+            const clone = el.cloneNode(true);
+            clone.style.font = cs.font;
+            clone.style.fontFamily = cs.fontFamily;
+            clone.style.fontSize = cs.fontSize;
+            clone.style.fontWeight = cs.fontWeight;
+            clone.style.fontStyle = cs.fontStyle;
+            clone.style.letterSpacing = cs.letterSpacing;
+            clone.style.textTransform = cs.textTransform;
+            clone.style.whiteSpace = 'nowrap';
+            clone.style.width = 'max-content';
+            clone.style.maxWidth = 'none';
+            clone.style.display = 'inline-block';
+            // A second copy of a formula's clip-path ids would steal the live
+            // SVG's paint while the clone is in the document.
+            const ids = [];
+            clone.querySelectorAll('[id]').forEach((node) => ids.push(node.id));
+            if (ids.length) {
+                  ids.sort((a, b) => b.length - a.length);
+                  let html = clone.innerHTML;
+                  ids.forEach((id) => {
+                        const next = 'dgm-' + id;
+                        html = html.replaceAll('id="' + id + '"', 'id="' + next + '"');
+                        html = html.replaceAll("id='" + id + "'", "id='" + next + "'");
+                        html = html.replaceAll('url(#' + id + ')', 'url(#' + next + ')');
+                        html = html.replaceAll('href="#' + id + '"', 'href="#' + next + '"');
+                        html = html.replaceAll("href='#" + id + "'", "href='#" + next + "'");
+                  });
+                  clone.innerHTML = html;
+            }
+            clone.querySelectorAll('mjx-assistive-mml').forEach((node) => {
+                  node.style.display = 'none';
+            });
+            clone.querySelectorAll('mjx-container, svg').forEach((node) => {
+                  node.style.maxWidth = 'none';
+                  node.style.overflow = 'visible';
+                  node.style.whiteSpace = 'nowrap';
+            });
+            outlineProbe.replaceChildren(clone);
+            const width = clone.getBoundingClientRect().width;
+            outlineProbe.replaceChildren();
+            return width;
+      }
+
+      // Drawer width that keeps this outline row on one line. Nested rows
+      // include their indent via the live left edge. The title container's
+      // right padding keeps the title clear of the corner toggle.
+      function outlinePanelWidth(el) {
+            const panel = panelEl('right');
+            if (!panel || panel.getBoundingClientRect().width < 24 || !labelIsShown(el)) return 0;
+            const contentW = measureOutlineContent(el);
+            if (!contentW) return 0;
+            const panelRect = panel.getBoundingClientRect();
+            const container = el.closest('.toc-title-container, .toc-container') || el;
+            const padR = parseFloat(getComputedStyle(container).paddingRight) || 0;
+            const after = panelRect.right - container.getBoundingClientRect().right;
+            const textLeft = el.getBoundingClientRect().left;
+            return Math.ceil(textLeft - panelRect.left + contentW + padR + Math.max(0, after) + 8);
+      }
+
+      // Resting width fits the title and every TOC row, and never exceeds a
+      // quarter of the viewport. A manual resize in this page view sticks.
+      function fitRightPanelToHeadings() {
+            if (rightWidthManual) return;
+            if (document.documentElement.classList.contains('panel-resizing')) return;
+            const panel = panelEl('right');
+            if (!panel) return;
+            if (panel.getBoundingClientRect().width < 24) {
+                  const collapsed = document.documentElement.classList.contains('right-panel-collapsed');
+                  if (!collapsed && rightFitTries < 10) {
+                        rightFitTries += 1;
+                        clearTimeout(rightFitTimer);
+                        rightFitTimer = setTimeout(fitRightPanelToHeadings, 70);
+                  }
+                  return;
+            }
+            rightFitTries = 0;
+            let needed = 0;
+            const title = document.querySelector('#page-panel .toc-title');
+            if (title) needed = outlinePanelWidth(title);
+            document.querySelectorAll('#page-panel .toc-container a').forEach((el) => {
+                  const width = outlinePanelWidth(el);
+                  if (width > needed) needed = width;
+            });
+            if (!needed) return;
+            const cap = rightWidthCap();
+            const target = cap > 0 ? Math.min(needed, cap) : needed;
+            setAutoRightWidth(target);
+      }
+
+      function bindResizer(el) {
+            const side = el.getAttribute('data-panel-resize');
+            if (side !== 'left' && side !== 'right') return;
+            let startX = 0;
+            let startW = 0;
+
+            function currentWidth() {
+                  const panel = panelEl(side);
+                  return panel ? panel.getBoundingClientRect().width : 0;
+            }
+
+            function onPointerDown(evt) {
+                  if (evt.button !== undefined && evt.button !== 0) return;
+                  evt.preventDefault();
+                  evt.stopPropagation();
+                  startX = evt.clientX;
+                  startW = currentWidth();
+                  el.classList.add('is-dragging');
+                  document.documentElement.classList.add('panel-resizing');
+                  if (el.setPointerCapture) el.setPointerCapture(evt.pointerId);
+            }
+
+            function onPointerMove(evt) {
+                  if (!el.classList.contains('is-dragging')) return;
+                  const dx = evt.clientX - startX;
+                  const next = side === 'left' ? startW + dx : startW - dx;
+                  setPanelWidth(side, next, true);
+            }
+
+            function onPointerUp(evt) {
+                  if (!el.classList.contains('is-dragging')) return;
+                  el.classList.remove('is-dragging');
+                  document.documentElement.classList.remove('panel-resizing');
+                  if (el.releasePointerCapture) {
+                        try {
+                              el.releasePointerCapture(evt.pointerId);
+                        } catch {
+                              // already released
+                        }
+                  }
+            }
+
+            el.addEventListener('pointerdown', onPointerDown);
+            el.addEventListener('pointermove', onPointerMove);
+            el.addEventListener('pointerup', onPointerUp);
+            el.addEventListener('pointercancel', onPointerUp);
+            el.addEventListener('keydown', (evt) => {
+                  if (evt.key !== 'ArrowLeft' && evt.key !== 'ArrowRight') return;
+                  evt.preventDefault();
+                  const step = evt.shiftKey ? 40 : 16;
+                  const delta = evt.key === 'ArrowRight' ? step : -step;
+                  const signed = side === 'left' ? delta : -delta;
+                  setPanelWidth(side, currentWidth() + signed, true);
+            });
+      }
+
+      document.addEventListener('click', (evt) => {
+            if (evt.target.closest('[data-panel-resize]')) {
+                  evt.preventDefault();
+                  evt.stopPropagation();
+                  return;
+            }
+            const btn = evt.target.closest('[data-panel-toggle].panel-edge-toggle');
+            if (btn) {
+                  const side = btn.getAttribute('data-panel-toggle');
+                  if (side !== 'left' && side !== 'right') return;
+                  evt.preventDefault();
+                  evt.stopPropagation();
+                  setCollapsed(side, !pinnedCollapsed(side));
+                  return;
+            }
+
+            if (!isCompact()) return;
+
+            const link = evt.target.closest && evt.target.closest('a[href]');
+            if (link && !evt.button && !evt.metaKey && !evt.ctrlKey && !evt.shiftKey && !evt.altKey) {
+                  const href = link.getAttribute('href') || '';
+                  if (href && href !== '#') {
+                        if (!pinnedCollapsed('left')) setCollapsed('left', true);
+                        if (!pinnedCollapsed('right')) setCollapsed('right', true);
+                        return;
+                  }
+            }
+
+            const leftOpen = !pinnedCollapsed('left');
+            const rightOpen = !pinnedCollapsed('right');
+            if (!leftOpen && !rightOpen) return;
+
+            const inLeft = evt.target.closest('.filetree-wrapper');
+            const inRight = evt.target.closest('.sidebar#page-panel');
+            const onEdge = evt.target.closest('.panel-edge-toggle');
+
+            if (!inLeft && !inRight && !onEdge) {
+                  if (leftOpen) setCollapsed('left', true);
+                  if (rightOpen) setCollapsed('right', true);
+            }
+      }, true);
+
+      function boot() {
+            bindHover('left');
+            bindHover('right');
+            document.addEventListener('pointermove', (evt) => {
+                  if (!isDesktop()) return;
+                  if (document.documentElement.classList.contains('panel-resizing')) return;
+                  ['left', 'right'].forEach((side) => {
+                        if (!hoverPeek[side]) return;
+                        if (pointerOverSide(side, evt.clientX, evt.clientY)) cancelPeekClose(side);
+                        else schedulePeekClose(side);
+                  });
+            });
+            document.querySelectorAll('[data-panel-resize]').forEach(bindResizer);
+            applyStoredWidths();
+            applyState();
+            const tree = document.querySelector('.filetree-scroll');
+            if (tree && window.MutationObserver) {
+                  let pending = false;
+                  const observer = new MutationObserver(() => {
+                        if (pending) return;
+                        pending = true;
+                        requestAnimationFrame(() => {
+                              pending = false;
+                              syncFiletreeDeadlines();
+                              refitPanels();
+                        });
+                  });
+                  observer.observe(tree, { subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+            }
+            window.addEventListener('resize', syncFiletreeDeadlines);
+            syncFiletreeDeadlines();
+            window.addEventListener('load', () => {
+                  syncFiletreeDeadlines();
+                  refitPanels();
+            });
+            requestAnimationFrame(() => requestAnimationFrame(refitPanels));
+            if (document.fonts && document.fonts.ready) {
+                  document.fonts.ready.then(refitPanels);
+            }
+            document.addEventListener('alpine:initialized', () => {
+                  requestAnimationFrame(refitPanels);
+            });
+            document.addEventListener('dg-toc-refresh', () => {
+                  requestAnimationFrame(refitPanels);
+            });
+            // Lucide may load after DOMContentLoaded.
+            if (!iconsReady) {
+                  const t = setInterval(() => {
+                        ensureIcons();
+                        if (iconsReady) clearInterval(t);
+                  }, 50);
+                  setTimeout(() => clearInterval(t), 3000);
+            }
+      }
+
+      COMPACT_MQ.addEventListener('change', () => {
+            hoverPeek.left = false;
+            hoverPeek.right = false;
+            applyStoredWidths();
+            applyState();
+      });
+      window.addEventListener('resize', () => {
+            if (document.documentElement.classList.contains('panel-resizing')) return;
+            applyStoredWidths();
+      });
+      DESKTOP_MQ.addEventListener('change', () => {
+            hoverPeek.left = false;
+            hoverPeek.right = false;
+            applyState();
+      });
+
+      if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', boot);
+      } else {
+            boot();
+      }
+})();
+</script>

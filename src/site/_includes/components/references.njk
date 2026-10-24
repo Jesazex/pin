@@ -1,0 +1,150 @@
+    <script>
+      function headingFromHash(hash) {
+        if (!hash) return null;
+        let id = hash.charAt(0) === "#" ? hash.slice(1) : hash;
+        try {
+          id = decodeURIComponent(id);
+        } catch (e) {
+          // keep the raw id
+        }
+        const el = document.getElementById(id);
+        if (!el) return null;
+        if (/^H[1-6]$/.test(el.tagName)) return el;
+        return el.closest("h1, h2, h3, h4, h5, h6") || el;
+      }
+
+      function hashSpacer() {
+        var spacer = document.getElementById("dg-hash-spacer");
+        if (!spacer) {
+          spacer = document.createElement("div");
+          spacer.id = "dg-hash-spacer";
+          spacer.setAttribute("aria-hidden", "true");
+          document.body.appendChild(spacer);
+        }
+        return spacer;
+      }
+
+      function contentEnd(spacer) {
+        var end = 0;
+        var nodes = document.body.children;
+        for (var i = 0; i < nodes.length; i++) {
+          if (nodes[i] === spacer) continue;
+          var pos = getComputedStyle(nodes[i]).position;
+          if (pos === "fixed" || pos === "sticky") continue;
+          var bottom = nodes[i].getBoundingClientRect().bottom + window.scrollY;
+          if (bottom > end) end = bottom;
+        }
+        return end;
+      }
+
+      // A note that already fits the viewport must not gain empty scroll room.
+      function applyPageFit() {
+        var spacer = document.getElementById("dg-hash-spacer");
+        var previous = spacer ? spacer.style.height : "";
+        if (spacer) spacer.style.height = "0px";
+        var root = document.documentElement;
+        root.classList.remove("dg-page-fits");
+        var fits = root.scrollHeight <= window.innerHeight + 1;
+        root.classList.toggle("dg-page-fits", fits);
+        if (fits) {
+          if (spacer) spacer.style.height = "0px";
+          if (window.scrollY) window.scrollTo(0, 0);
+        } else if (spacer) {
+          spacer.style.height = previous;
+        }
+      }
+
+      function ensureScrollRoom(el) {
+        var spacer = hashSpacer();
+        spacer.style.height = "0px";
+        var end = contentEnd(spacer);
+        if (end <= window.innerHeight + 1) {
+          document.documentElement.classList.add("dg-page-fits");
+          return;
+        }
+        document.documentElement.classList.remove("dg-page-fits");
+        var margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
+        var desired = el.getBoundingClientRect().top + window.scrollY - margin;
+        if (desired < 0) desired = 0;
+        var need = desired + window.innerHeight - end;
+        spacer.style.height = need > 1 ? Math.ceil(need) + "px" : "0px";
+      }
+
+      applyPageFit();
+      window.addEventListener("load", applyPageFit);
+      window.addEventListener("resize", applyPageFit);
+
+      function scrollHeadingIntoPlace(el) {
+        ensureScrollRoom(el);
+        var margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
+        var top = el.getBoundingClientRect().top + window.scrollY - margin;
+        if (top < 0) top = 0;
+        var root = document.documentElement;
+        var previous = root.style.scrollBehavior;
+        root.style.scrollBehavior = "auto";
+        window.scrollTo(0, top);
+        root.style.scrollBehavior = previous;
+      }
+
+      function scrollHeadingSmooth(el) {
+        if (!el) return;
+        clearHeadingMark(el);
+        ensureScrollRoom(el);
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      function focusHashedHeading() {
+        scrollHeadingSmooth(headingFromHash(window.location.hash));
+      }
+
+      function clearHeadingMark(el) {
+        if (!el) return;
+        el.classList.remove("referred");
+        el.classList.remove("heading-flash");
+      }
+
+      // A link to a heading on this page glides there and does not highlight it.
+      document.addEventListener("click", function (event) {
+        var link = event.target.closest && event.target.closest("a[href]");
+        if (!link || event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        var url;
+        try {
+          url = new URL(link.href, window.location.href);
+        } catch (e) {
+          return;
+        }
+        if (!url.hash || url.hash === "#") return;
+        if (url.origin !== window.location.origin || url.pathname !== window.location.pathname || url.search !== window.location.search) return;
+        var el = headingFromHash(url.hash);
+        if (!el) return;
+        event.preventDefault();
+        if (window.location.hash !== url.hash) history.pushState(null, "", url.hash);
+        scrollHeadingSmooth(el);
+      }, true);
+
+      if (window.location.hash) {
+        focusHashedHeading();
+        window.addEventListener("load", function () {
+          var el = headingFromHash(window.location.hash);
+          if (el) scrollHeadingSmooth(el);
+        });
+      }
+      window.addEventListener("hashchange", function (evt) {
+        const oldParts = evt.oldURL.split("#");
+        if (oldParts[1]) {
+          clearHeadingMark(headingFromHash("#" + oldParts[1]));
+        }
+        focusHashedHeading();
+      }, false);
+      const url_parts = window.location.href.split("#")
+      const url = url_parts[0];
+      const referrence = url_parts[1];
+      document.querySelectorAll(".cm-s-obsidian > *[id]").forEach(function (el) {
+        el.ondblclick = function(evt) {
+          const ref_url = url + '#' + evt.target.id
+          navigator.clipboard.writeText(ref_url);
+      }
+      });
+
+      
+    </script>

@@ -1,0 +1,548 @@
+{%- set candidatesJson = userComputed.controlDeadlineCandidatesJson if userComputed else "[]" -%}
+{%- if candidatesJson and candidatesJson != "[]" -%}
+<script>
+(function () {
+  {{ userComputed.deadlinesClientSource | safe }}
+  if (typeof dgDeadlinesApi === "undefined") return;
+  var deadlinesFolderName = {{ userComputed.deadlinesFolder | jsonify | safe }};
+
+  function subjectLink(subject) {
+    var link = document.createElement("a");
+    link.className = "deadline-subject";
+    link.href = subject.href;
+    link.textContent = subject.subjectName;
+    return link;
+  }
+
+  function columnsByNearest(columns, rows) {
+    var rank = {};
+    var i;
+    var name;
+    for (i = 0; i < columns.length; i++) rank[columns[i]] = rows.length + 1;
+    for (i = 0; i < rows.length; i++) {
+      if (rows[i].past) continue;
+      var cells = rows[i].cells || {};
+      for (name in cells) {
+        if (!Object.prototype.hasOwnProperty.call(cells, name)) continue;
+        if (cells[name] && cells[name].length && rank[name] > i) rank[name] = i;
+      }
+    }
+    return columns.slice().sort(function (a, b) {
+      return rank[a] - rank[b] || String(a).localeCompare(String(b), "ru");
+    });
+  }
+
+  function renderTable(table) {
+    var columns = columnsByNearest(table.columns || [], table.rows || []);
+    var rows = table.rows || [];
+    var tableEl = document.createElement("table");
+    var head = document.createElement("thead");
+    var headRow = document.createElement("tr");
+    var weekHead = document.createElement("th");
+    weekHead.scope = "col";
+    weekHead.className = "deadline-week-head";
+    weekHead.setAttribute("aria-label", "Неделя");
+    headRow.appendChild(weekHead);
+    var corner = document.createElement("th");
+    corner.scope = "col";
+    corner.textContent = "Дата";
+    headRow.appendChild(corner);
+    for (var c = 0; c < columns.length; c++) {
+      var th = document.createElement("th");
+      th.scope = "col";
+      th.className = "deadline-type-head";
+      th.setAttribute("data-deadline-type", columns[c]);
+      var typeButton = document.createElement("button");
+      typeButton.type = "button";
+      typeButton.className = "deadline-type-button";
+      typeButton.textContent = columns[c];
+      var typeSubjects = (controlSubjects && controlSubjects[columns[c]]) || [];
+      if (typeSubjects.length) {
+        typeButton.setAttribute("aria-haspopup", "menu");
+        typeButton.setAttribute("aria-expanded", "false");
+      }
+      var typeAnchor = document.createElement("span");
+      typeAnchor.className = "deadline-type-anchor";
+      typeAnchor.appendChild(typeButton);
+      th.appendChild(typeAnchor);
+      headRow.appendChild(th);
+    }
+    head.appendChild(headRow);
+    tableEl.appendChild(head);
+    var body = document.createElement("tbody");
+    var r = 0;
+    while (r < rows.length) {
+      var span = 1;
+      var week = rows[r].week;
+      while (r + span < rows.length && rows[r + span].week === week) span++;
+      for (var i = 0; i < span; i++) {
+        var tr = document.createElement("tr");
+        if (i === 0) {
+          var weekCell = document.createElement("th");
+          weekCell.scope = "rowgroup";
+          weekCell.rowSpan = span;
+          weekCell.className = "deadline-week";
+          var weekText = document.createElement("span");
+          weekText.className = "deadline-week-label";
+          var weekInner = document.createElement("span");
+          weekInner.className = "deadline-week-text";
+          var weekFull = rows[r].weekLabel || (week + " неделя");
+          weekInner.textContent = weekFull;
+          weekInner.title = weekFull;
+          weekText.appendChild(weekInner);
+          weekCell.appendChild(weekText);
+          tr.appendChild(weekCell);
+        }
+        if (rows[r + i].weekend) tr.classList.add("deadline-weekend");
+        if (rows[r + i].past) tr.classList.add("deadline-past");
+        if (rows[r + i].days === 0) tr.setAttribute("data-deadline-today", "");
+        var dateCell = document.createElement("th");
+        dateCell.scope = "row";
+        if (rows[r + i].days === 0) dateCell.className = "deadline-today-edge";
+        var dateLink = document.createElement("a");
+        dateLink.className = "deadline-date";
+        dateLink.href = rows[r + i].href || "#";
+        var dateText = rows[r + i].label || "";
+        if (rows[r + i].weekday) dateText += ", " + rows[r + i].weekday;
+        if (rows[r + i].whenText) dateText += " (" + rows[r + i].whenText + ")";
+        dateLink.textContent = dateText;
+        dateCell.appendChild(dateLink);
+        tr.appendChild(dateCell);
+        for (var k = 0; k < columns.length; k++) {
+          var td = document.createElement("td");
+          var items = (rows[r + i].cells && rows[r + i].cells[columns[k]]) || [];
+          for (var s = 0; s < items.length; s++) td.appendChild(subjectLink(items[s]));
+          tr.appendChild(td);
+        }
+        if (i === span - 1 && r + span < rows.length) tr.classList.add("deadline-week-end");
+        body.appendChild(tr);
+      }
+      if (r + span < rows.length) {
+        var rule = document.createElement("tr");
+        rule.className = "deadline-week-rule";
+        var ruleCell = document.createElement("td");
+        ruleCell.colSpan = columns.length + 2;
+        rule.appendChild(ruleCell);
+        body.appendChild(rule);
+      }
+      r += span;
+    }
+    tableEl.appendChild(body);
+    return tableEl;
+  }
+
+  var typeMenu = null;
+  var typeMenuTimer = null;
+  var typeMenuOpenedAt = 0;
+
+  function useTypeHover() {
+    return !window.matchMedia("(max-width: 1000px)").matches;
+  }
+
+  function closeTypeMenu() {
+    if (typeMenuTimer) {
+      clearTimeout(typeMenuTimer);
+      typeMenuTimer = null;
+    }
+    if (!typeMenu) return;
+    if (typeMenu._unfollow) typeMenu._unfollow();
+    var owner = typeMenu._owner;
+    if (owner) owner.setAttribute("aria-expanded", "false");
+    typeMenu.remove();
+    typeMenu = null;
+  }
+
+  function placeTypeMenu(menu, anchor, button) {
+    var overlay = document.getElementById("dg-deadline-table");
+    var head = anchor && anchor.closest ? anchor.closest("th") : null;
+    var basis = button || anchor;
+    if (!overlay || !basis || !basis.getBoundingClientRect) {
+      if (anchor) anchor.appendChild(menu);
+      return;
+    }
+    var box = basis.getBoundingClientRect();
+    var host = overlay.getBoundingClientRect();
+    var borderTop = overlay.clientTop || 0;
+    var borderLeft = overlay.clientLeft || 0;
+    var borderRight = host.width - overlay.clientWidth - borderLeft;
+    menu.style.position = "absolute";
+    menu.style.top = (box.bottom - host.top - borderTop) + "px";
+    menu.style.zIndex = "40";
+    if (menu.classList.contains("deadline-type-menu-end")) {
+      menu.style.left = "auto";
+      menu.style.right = (host.right - borderRight - box.right) + "px";
+    } else {
+      menu.style.right = "auto";
+      menu.style.left = (box.left - host.left - borderLeft) + "px";
+    }
+    if (menu.parentElement !== overlay) overlay.appendChild(menu);
+  }
+
+  function scheduleTypeMenuClose() {
+    if (typeMenuTimer) clearTimeout(typeMenuTimer);
+    typeMenuTimer = setTimeout(closeTypeMenu, 180);
+  }
+
+  function openTypeMenu(anchor, button, typeName) {
+    var subjects = (controlSubjects && controlSubjects[typeName]) || [];
+    if (!subjects.length || !anchor) return;
+    closeTypeMenu();
+    var menu = document.createElement("ul");
+    menu.className = "deadline-type-menu";
+    var head = anchor.closest ? anchor.closest("th") : anchor.parentElement;
+    var row = head && head.parentElement;
+    if (row && head === row.lastElementChild) menu.classList.add("deadline-type-menu-end");
+    menu.setAttribute("role", "menu");
+    menu._owner = button;
+    menu._anchor = anchor;
+    for (var i = 0; i < subjects.length; i++) {
+      var item = document.createElement("li");
+      item.setAttribute("role", "none");
+      var link = document.createElement("a");
+      link.setAttribute("role", "menuitem");
+      link.href = subjects[i].href;
+      link.textContent = subjects[i].subjectName;
+      item.appendChild(link);
+      menu.appendChild(item);
+    }
+    menu.addEventListener("mouseenter", function () {
+      if (!useTypeHover()) return;
+      if (typeMenuTimer) {
+        clearTimeout(typeMenuTimer);
+        typeMenuTimer = null;
+      }
+    });
+    menu.addEventListener("mouseleave", function () {
+      if (!useTypeHover()) return;
+      scheduleTypeMenuClose();
+    });
+    var scroll = document.querySelector(".deadline-table-scroll");
+    function follow() { placeTypeMenu(menu, anchor, button); }
+    follow();
+    if (scroll) scroll.addEventListener("scroll", follow, { passive: true });
+    window.addEventListener("resize", follow);
+    menu._unfollow = function () {
+      if (scroll) scroll.removeEventListener("scroll", follow);
+      window.removeEventListener("resize", follow);
+    };
+    typeMenu = menu;
+    typeMenuOpenedAt = Date.now();
+    if (button) button.setAttribute("aria-expanded", "true");
+  }
+
+  function bindTypeMenus(tableEl) {
+    if (!tableEl) return;
+    var heads = tableEl.querySelectorAll(".deadline-type-head");
+    for (var i = 0; i < heads.length; i++) {
+      (function (head) {
+        var button = head.querySelector(".deadline-type-button");
+        var anchor = head.querySelector(".deadline-type-anchor") || button;
+        var typeName = head.getAttribute("data-deadline-type");
+        if (!button || button.getAttribute("aria-haspopup") !== "menu") return;
+        button.addEventListener("mouseenter", function (event) {
+          if (!useTypeHover()) return;
+          if (event.target !== button && !button.contains(event.target)) return;
+          if (typeMenuTimer) {
+            clearTimeout(typeMenuTimer);
+            typeMenuTimer = null;
+          }
+          openTypeMenu(anchor, button, typeName);
+        });
+        button.addEventListener("mouseleave", function () {
+          if (!useTypeHover()) return;
+          scheduleTypeMenuClose();
+        });
+        button.addEventListener("click", function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (typeMenu && typeMenu._owner === button) {
+            // Desktop already opens the list on hover. A click there keeps it
+            // open. On a phone, the same header toggles the list.
+            if (!useTypeHover()) closeTypeMenu();
+            return;
+          }
+          openTypeMenu(anchor, button, typeName);
+        });
+      })(heads[i]);
+    }
+  }
+
+  function closeTable() {
+    closeTypeMenu();
+    var overlay = document.getElementById("dg-deadline-table");
+    if (overlay) {
+      if (overlay._deadlineUnbind) overlay._deadlineUnbind();
+      overlay.remove();
+    }
+    document.removeEventListener("keydown", onTableKey);
+  }
+
+  function onTableKey(event) {
+    if (event.key !== "Escape") return;
+    if (typeMenu) {
+      closeTypeMenu();
+      return;
+    }
+    closeTable();
+  }
+
+  function clipWeekLabels(tableEl) {
+    if (!tableEl) return;
+    var nodes = tableEl.querySelectorAll(".deadline-week-text");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      var full = el.getAttribute("data-full") || el.title || el.textContent;
+      el.setAttribute("data-full", full);
+      el.title = full;
+      el.textContent = full;
+      el.style.maxHeight = "none";
+      var needed = el.getBoundingClientRect().height;
+      var available = el.parentElement.getBoundingClientRect().height;
+      el.style.maxHeight = "";
+      if (needed <= available + 1) continue;
+      var lo = 1;
+      var hi = full.length;
+      var best = "…";
+      while (lo <= hi) {
+        var mid = (lo + hi) >> 1;
+        var next = full.slice(0, mid).replace(/[\s(]+$/, "") + "…";
+        el.textContent = next;
+        el.style.maxHeight = "none";
+        var height = el.getBoundingClientRect().height;
+        el.style.maxHeight = "";
+        if (height <= available + 1) {
+          best = next;
+          lo = mid + 1;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      el.textContent = best;
+    }
+  }
+
+  function fitDeadlineWindow(scroll, tableEl) {
+    if (!scroll || !tableEl) return;
+    var maxW = Math.max(160, window.innerWidth - 48);
+    var maxH = Math.max(120, Math.min(window.innerHeight * 0.85, window.innerHeight - 48));
+    var rect = tableEl.getBoundingClientRect();
+    var w = Math.ceil(rect.width);
+    var h = Math.ceil(rect.height);
+    scroll.style.width = Math.min(w, maxW) + "px";
+    scroll.style.height = Math.min(h, maxH) + "px";
+    var barX = scroll.offsetWidth - scroll.clientWidth;
+    if (barX > 0 && w + barX <= maxW) scroll.style.width = (w + barX) + "px";
+    var barY = scroll.offsetHeight - scroll.clientHeight;
+    if (barY > 0 && h + barY <= maxH) scroll.style.height = (h + barY) + "px";
+  }
+
+  function bindDeadlinePinch(scroll, onScale) {
+    var query = window.matchMedia("(max-width: 1000px)");
+    var table = scroll.querySelector("table");
+    if (!table) return;
+    var scale = 1;
+    var startDist = 0;
+    var startScale = 1;
+
+    function distance(touches) {
+      var dx = touches[0].clientX - touches[1].clientX;
+      var dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy) || 1;
+    }
+
+    function applyScale(next) {
+      if (next < 0.5) next = 0.5;
+      if (next > 3) next = 3;
+      scale = next;
+      table.style.zoom = String(scale);
+      if (onScale) onScale();
+    }
+
+    scroll.addEventListener("touchstart", function (event) {
+      if (!query.matches || event.touches.length !== 2) return;
+      startDist = distance(event.touches);
+      startScale = scale;
+    }, { passive: true });
+
+    scroll.addEventListener("touchmove", function (event) {
+      if (!query.matches || event.touches.length !== 2 || !startDist) return;
+      event.preventDefault();
+      applyScale(startScale * (distance(event.touches) / startDist));
+    }, { passive: false });
+
+    function endPinch(event) {
+      if (!event.touches || event.touches.length < 2) startDist = 0;
+    }
+
+    scroll.addEventListener("touchend", endPinch);
+    scroll.addEventListener("touchcancel", endPinch);
+  }
+
+  function sameOpenPage(href) {
+    var url;
+    try {
+      url = new URL(href, window.location.href);
+    } catch (err) {
+      return false;
+    }
+    return url.origin === window.location.origin
+      && url.pathname === window.location.pathname
+      && url.search === window.location.search;
+  }
+
+  function pinTableAtToday(scroll, tableEl) {
+    if (!scroll || !tableEl) return;
+    var row = tableEl.querySelector("[data-deadline-today]");
+    var head = tableEl.tHead || tableEl.querySelector("thead");
+    var headH = head ? head.getBoundingClientRect().height : 0;
+    if (!row) {
+      var bodyRows = tableEl.querySelectorAll("tbody > tr:not(.deadline-week-rule)");
+      var pastRows = tableEl.querySelectorAll("tbody > tr.deadline-past");
+      if (bodyRows.length && pastRows.length === bodyRows.length) scroll.scrollTop = scroll.scrollHeight;
+      return;
+    }
+    var delta = row.getBoundingClientRect().top - scroll.getBoundingClientRect().top - headH;
+    if (delta) scroll.scrollTop += delta;
+  }
+
+  function openTable(table) {
+    closeTable();
+    var overlay = document.createElement("div");
+    overlay.id = "dg-deadline-table";
+    overlay.className = "deadline-table-overlay";
+    var panel = document.createElement("div");
+    panel.className = "deadline-table-panel";
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-label", deadlinesFolderName || "Дедлайны");
+    var scroll = document.createElement("div");
+    scroll.className = "deadline-table-scroll";
+    var tableEl = null;
+    if (!table.rows || !table.rows.length) {
+      var empty = document.createElement("p");
+      empty.className = "deadline-table-empty";
+      empty.textContent = "Нет предстоящих дат";
+      scroll.appendChild(empty);
+    } else {
+      tableEl = renderTable(table);
+      scroll.appendChild(tableEl);
+      bindTypeMenus(tableEl);
+    }
+    panel.appendChild(scroll);
+    overlay.appendChild(panel);
+    function placeHeaderShield() {
+      if (!scroll || !tableEl || !tableEl.tHead) return;
+      var shield = scroll.querySelector(".deadline-header-shield");
+      if (!shield) {
+        shield = document.createElement("div");
+        shield.className = "deadline-header-shield";
+        shield.setAttribute("aria-hidden", "true");
+        scroll.insertBefore(shield, tableEl);
+      }
+      var height = Math.ceil(tableEl.tHead.getBoundingClientRect().height);
+      if (height < 1) return;
+      shield.style.height = height + "px";
+      shield.style.marginBottom = -height + "px";
+      shield.style.width = scroll.clientWidth + "px";
+      if (shield._bound) return;
+      shield._bound = true;
+      var pointed = null;
+      function under(event) {
+        shield.style.pointerEvents = "none";
+        var el = document.elementFromPoint(event.clientX, event.clientY);
+        shield.style.pointerEvents = "auto";
+        if (!el || !el.closest) return null;
+        return el.closest("button.deadline-type-button, .deadline-type-menu a");
+      }
+      function pointAt(event) {
+        var next = under(event);
+        if (pointed && pointed !== next) {
+          pointed.classList.remove("is-pointed");
+          if (pointed.classList.contains("deadline-type-button")) {
+            pointed.dispatchEvent(new MouseEvent("mouseleave"));
+          }
+        }
+        if (next && next !== pointed && next.classList.contains("deadline-type-button")) {
+          next.dispatchEvent(new MouseEvent("mouseenter"));
+        }
+        pointed = next;
+        if (pointed) pointed.classList.add("is-pointed");
+        shield.style.cursor = pointed ? "pointer" : "default";
+        return pointed;
+      }
+      shield.addEventListener("mousemove", pointAt);
+      shield.addEventListener("mouseleave", function () {
+        if (pointed) pointed.classList.remove("is-pointed");
+        pointed = null;
+        shield.style.cursor = "default";
+      });
+      shield.addEventListener("click", function (event) {
+        var target = pointAt(event);
+        if (!target) return;
+        // The shield sits over the sticky header, so this click is not the
+        // button's own event. Stop it before the overlay treats it as an
+        // outside click and closes the list that target.click() just opened.
+        event.preventDefault();
+        event.stopPropagation();
+        target.click();
+      });
+    }
+    overlay.addEventListener("click", function (event) {
+      if (
+        typeMenu &&
+        Date.now() - typeMenuOpenedAt > 350 &&
+        !typeMenu.contains(event.target) &&
+        !(event.target.closest && event.target.closest(".deadline-type-head"))
+      ) {
+        closeTypeMenu();
+      }
+      var link = event.target.closest && event.target.closest("a[href]");
+      if (
+        link &&
+        !event.button &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.shiftKey &&
+        !event.altKey &&
+        sameOpenPage(link.href)
+      ) {
+        var next = new URL(link.href, window.location.href);
+        var sameHash = next.hash === window.location.hash;
+        closeTable();
+        if (sameHash) event.preventDefault();
+        return;
+      }
+      if (event.target === overlay) closeTable();
+    });
+    document.body.appendChild(overlay);
+    clipWeekLabels(tableEl);
+    function refit() {
+      fitDeadlineWindow(scroll, tableEl);
+      placeHeaderShield();
+    }
+    refit();
+    pinTableAtToday(scroll, tableEl);
+    placeHeaderShield();
+    scroll.addEventListener("scroll", placeHeaderShield, { passive: true });
+    window.addEventListener("resize", refit);
+    overlay._deadlineUnbind = function () {
+      window.removeEventListener("resize", refit);
+    };
+    bindDeadlinePinch(scroll, refit);
+    document.addEventListener("keydown", onTableKey);
+  }
+
+  try {
+    var candidates = {{ userComputed.controlDeadlineCandidatesJson | safe }};
+    var controlSubjects = {{ userComputed.controlSubjectsJson | safe }};
+    var table = dgDeadlinesApi.buildDeadlineTable(candidates);
+    document.addEventListener("click", function (event) {
+      var trigger = event.target && event.target.closest && event.target.closest("[data-open-deadline-table]");
+      if (!trigger) return;
+      event.preventDefault();
+      openTable(table);
+    });
+  } catch (err) {}
+})();
+</script>
+{%- endif -%}

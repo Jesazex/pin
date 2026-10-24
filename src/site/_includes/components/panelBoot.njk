@@ -1,0 +1,40 @@
+{#- Apply pinned panel state on <html> before first paint to avoid open→close flash. -#}
+<script>
+(function () {
+      var LEFT_KEY = 'dg-left-panel-collapsed';
+      var RIGHT_KEY = 'dg-right-panel-collapsed';
+      var html = document.documentElement;
+
+      try {
+            var compact = window.matchMedia('(max-width: 1000px)').matches;
+            var leftRaw = sessionStorage.getItem(LEFT_KEY);
+            var rightRaw = sessionStorage.getItem(RIGHT_KEY);
+            // Left starts open. Right stays closed until the reader opens it.
+            var leftCollapsed = leftRaw === '1';
+            var rightCollapsed = rightRaw !== '0';
+            // Mobile: only one panel open at a time.
+            if (compact && !leftCollapsed && !rightCollapsed) {
+                  rightCollapsed = true;
+            }
+            // Widths are fitted after load. A saved drag must not survive a
+            // refresh. Desktop outline starts at a quarter of the viewport;
+            // on a phone that quarter is too narrow, so the outline starts
+            // at the compact cap and the script fits the headings into it.
+            var quarter = Math.floor(window.innerWidth * 0.25);
+            var compactCap = Math.min(640, Math.max(180, Math.floor(window.innerWidth * 0.85)));
+            var leftStart = compact ? compactCap : quarter;
+            if (!leftCollapsed && leftStart > 0) {
+                  html.style.setProperty('--dg-panel-left-width', leftStart + 'px');
+            }
+            var rightStart = compact ? compactCap : quarter;
+            if (rightStart > 0) html.style.setProperty('--dg-panel-right-width', rightStart + 'px');
+            html.classList.toggle('left-panel-collapsed', leftCollapsed);
+            html.classList.toggle('right-panel-collapsed', rightCollapsed);
+            html.classList.toggle('compact-panels', compact);
+      } catch (e) {
+            html.classList.add('left-panel-collapsed', 'right-panel-collapsed');
+      }
+      html.classList.add('dg-panel-boot');
+      html.classList.add('dg-math-pending');
+})();
+</script>

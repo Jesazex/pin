@@ -1,0 +1,142 @@
+{% if settings.dgShowFileTree !== true %}
+  {% include "components/navbar.njk" %}
+{% else %}
+  {% macro menuItem(fileOrFolderName, fileOrFolder, step, currentPath) %}
+    {%if fileOrFolder.isNote or fileOrFolder.isFolder%}
+        <div x-show="isOpen" style="display:none" class="{{'filelist' if step>0}}">
+            {%if fileOrFolder.isNote and not fileOrFolder.hide %}
+                <a class="notelink{% if fileOrFolder.permalink === permalink %} active-note{% endif %}"
+                   href="{{fileOrFolder.permalink}}">
+                    <span class="filename" data-note-icon="{{fileOrFolder.noteIcon}}">{{fileOrFolder.name}}</span>
+                </a>
+            {% elif fileOrFolder.isFolder and fileOrFolder.deadlineTable %}
+                <div class="folder inner-folder deadline-folder" data-folder-key="{{ currentPath | escape }}">
+                    <button type="button" class="notelink deadline-table-open" data-open-deadline-table>
+                        <span class="filename">{{fileOrFolderName}}</span>
+                    </button>
+                </div>
+            {% elif fileOrFolder.isFolder%}
+                <div class="folder inner-folder" data-folder-key="{{ currentPath | escape }}" x-data="{isOpen: $persist(false).as({{currentPath | dump}}), toggleFolder() { this.isOpen = !this.isOpen; if (!this.isOpen && window.dgCollapseNestedFolders) { var folder = (this.$el && this.$el.closest) ? (this.$el.closest('.inner-folder') || this.$el) : this.$el; window.dgCollapseNestedFolders(folder); } }}">
+                    <div class="foldername-wrapper align-icon" role="button" tabindex="0" @click.stop="toggleFolder()" @keydown.enter.prevent="toggleFolder()" @keydown.space.prevent="toggleFolder()">
+                    <i x-show="isOpen" style="display: none;"  data-lucide="chevron-down"></i>
+                    <i x-show="!isOpen"  data-lucide="chevron-right"></i>
+                    <span class="foldername">{{fileOrFolderName}}</span>
+                    </div>
+                    {% for fileOrFolderName, child in fileOrFolder %}
+                        {{menuItem(fileOrFolderName, child, step+1, (currentPath+"/"+fileOrFolderName))}}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        {%endif%}
+    {% endmacro %}
+
+    {# Always use the desktop filetree chrome (no stock phone navbar).
+       Compact viewports collapse panels via sidebarToggles + CSS. #}
+    <script>
+      window.dgCollapseNestedFolders = function (folderEl) {
+        if (!folderEl || !folderEl.querySelectorAll) return;
+        folderEl.querySelectorAll(".inner-folder").forEach(function (child) {
+          var stack = child._x_dataStack;
+          var data = stack && stack[0];
+          if (data && data.isOpen) data.isOpen = false;
+        });
+      };
+    </script>
+    <div x-data="{isDesktop: true, showFilesMobile: false}">
+
+      <div class="filetree-wrapper" style="display: flex;">
+      <div class="panel-resizer panel-resizer-left" data-panel-resize="left" role="separator" aria-orientation="vertical" aria-label="Изменить ширину списка файлов" tabindex="0"></div>
+      <nav class="filetree-sidebar">
+        {% for imp in dynamics.filetree.beforeTitle %}
+            {% include imp %}
+        {% endfor %}
+         {% if meta.siteLogoPath %}
+         <a href="/" style="text-decoration: none; display: flex; justify-content: center;">
+                   <img class="site-logo" src="{{meta.siteLogoPath}}" alt="{{meta.siteName}}">
+         </a>
+         {% endif %}
+         {% for imp in dynamics.filetree.afterTitle %}
+            {% include imp %}
+        {% endfor %}
+        {% set slotName = "filetree.actions" %}{% include "components/pluginSlot.njk" %}
+         <div class="folder filetree-scroll" x-data="{isOpen: true}">
+               {%- for fileOrFolderName, fileOrFolder in filetree -%}
+                  {{menuItem(fileOrFolderName, fileOrFolder, 0, fileOrFolderName)}}
+               {%- endfor -%}
+         </div>
+      </nav>
+      </div>
+    </div>
+    {% include "components/deadlines.njk" %}
+    <script>
+      // Opening a note by a link should reveal it in the side menu. Alpine
+      // persist reads these keys at init, so write them before Alpine runs.
+      (function () {
+        var active = document.querySelector("a.notelink.active-note");
+        if (active) {
+          var node = active.parentElement;
+          while (node && node !== document.body) {
+            if (node.classList && node.classList.contains("inner-folder")) {
+              var key = node.getAttribute("data-folder-key");
+              if (key) {
+                try { localStorage.setItem(key, "true"); } catch (e) {}
+              }
+            }
+            node = node.parentElement;
+          }
+          document.addEventListener("alpine:initialized", function () {
+            var link = document.querySelector("a.notelink.active-note");
+            if (link && link.scrollIntoView) link.scrollIntoView({ block: "nearest" });
+            if (window.dgCenterTileLabels) window.dgCenterTileLabels();
+          });
+        }
+
+        // Equal gap from the tile border to the top and bottom of the painted
+        // letters, including descenders and accents.
+        var inkCanvas;
+        function labelInk(el) {
+          var tile = el.closest("a.notelink, .foldername-wrapper, button.deadline-table-open");
+          if (!tile) return;
+          if (!tile.getClientRects().length) return;
+          var text = (el.textContent || "").replace(/\s+/g, " ").trim();
+          if (!text) return;
+          el.style.top = "0px";
+          var tileRect = tile.getBoundingClientRect();
+          var elRect = el.getBoundingClientRect();
+          if (tileRect.height < 1 || elRect.height < 1) return;
+          if (!inkCanvas) inkCanvas = document.createElement("canvas");
+          var ctx = inkCanvas.getContext("2d");
+          if (!ctx || !ctx.measureText) return;
+          var cs = getComputedStyle(el);
+          ctx.font = cs.font;
+          var metrics = ctx.measureText(text);
+          var fontAscent = metrics.fontBoundingBoxAscent;
+          var fontDescent = metrics.fontBoundingBoxDescent;
+          if (!fontAscent && fontAscent !== 0) return;
+          var halfLeading = (elRect.height - (fontAscent + fontDescent)) / 2;
+          var baseline = elRect.top + halfLeading + fontAscent;
+          var inkTop = baseline - metrics.actualBoundingBoxAscent;
+          var inkBottom = baseline + metrics.actualBoundingBoxDescent;
+          var delta = ((tileRect.bottom - inkBottom) - (inkTop - tileRect.top)) / 2;
+          if (Math.abs(delta) < 0.4) el.style.top = "";
+          else el.style.top = delta.toFixed(2) + "px";
+        }
+        window.dgCenterTileLabels = function () {
+          document.querySelectorAll(".filetree-sidebar .filename, .filetree-sidebar .foldername, .filetree-sidebar .tile-label").forEach(labelInk);
+        };
+        function scheduleCenter() {
+          requestAnimationFrame(function () { window.dgCenterTileLabels(); });
+        }
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleCenter);
+        window.addEventListener("load", scheduleCenter);
+        document.addEventListener("alpine:initialized", scheduleCenter);
+        document.addEventListener("click", function (event) {
+          var folder = event.target && event.target.closest && event.target.closest(".foldername-wrapper");
+          if (!folder) return;
+          requestAnimationFrame(scheduleCenter);
+        });
+        scheduleCenter();
+      })();
+    </script>
+{% endif %}

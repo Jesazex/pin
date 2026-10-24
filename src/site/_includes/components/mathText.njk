@@ -1,0 +1,310 @@
+<script>
+(function () {
+  var family = "";
+  try {
+    family = getComputedStyle(document.body).fontFamily || "sans-serif";
+  } catch (e) {
+    family = "sans-serif";
+  }
+  var canvas = document.createElement("canvas");
+  var ctx = canvas.getContext("2d");
+
+  function translateX(el) {
+    var t = el.getAttribute("transform") || "";
+    var match = t.match(/translate\(\s*(-?[\d.]+)/);
+    return match ? parseFloat(match[1]) : 0;
+  }
+
+  function setTranslateX(el, x) {
+    var t = el.getAttribute("transform") || "";
+    var rounded = Math.round(x * 100) / 100;
+    if (/translate\(/.test(t)) {
+      el.setAttribute("transform", t.replace(/translate\(\s*(-?[\d.]+)((?:[\s,]+-?[\d.]+)?)\s*\)/, function (_full, _x, rest) {
+        return "translate(" + rounded + (rest || ",0") + ")";
+      }));
+      return;
+    }
+    el.setAttribute("transform", ("translate(" + rounded + ",0) " + t).trim());
+  }
+
+  function localScale(el) {
+    var t = el.getAttribute("transform") || "";
+    var match = t.match(/scale\(\s*(-?[\d.]+)/);
+    return match ? Math.abs(parseFloat(match[1])) || 1 : 1;
+  }
+
+  function shrinkSvg(svg, delta) {
+    if (!svg || !delta) return;
+    var vb = (svg.getAttribute("viewBox") || "").trim().split(/[\s,]+/).map(Number);
+    if (vb.length < 4 || !vb[2]) return;
+    var width = parseFloat(svg.getAttribute("width"));
+    var unit = width / vb[2];
+    vb[2] = Math.max(1, vb[2] - delta);
+    svg.setAttribute("viewBox", vb.join(" "));
+    if (width) svg.setAttribute("width", Math.max(0.1, width - delta * unit).toFixed(3) + "ex");
+  }
+
+  // These parents stack their children. A narrower \text{} must not slide
+  // the next row sideways — that is what carried the 0 of a cases block
+  // out past the brace.
+  var stackedNode = {
+    mtable: 1,
+    mtr: 1,
+    mlabeledtr: 1,
+    mfrac: 1,
+    munder: 1,
+    mover: 1,
+    munderover: 1,
+    msub: 1,
+    msup: 1,
+    msubsup: 1,
+    mmultiscripts: 1
+  };
+
+  function shiftFollowing(el, delta) {
+    if (!el || !delta) return;
+    var parent = el.parentElement;
+    if (!parent || parent.localName === "svg") {
+      if (parent && parent.localName === "svg") shrinkSvg(parent, delta);
+      return;
+    }
+    if (stackedNode[parent.getAttribute("data-mml-node")]) return;
+    var sib = el.nextElementSibling;
+    while (sib) {
+      setTranslateX(sib, translateX(sib) - delta);
+      sib = sib.nextElementSibling;
+    }
+    shiftFollowing(parent, delta * localScale(parent));
+  }
+
+  function pieceChar(el) {
+    if (el.localName === "text") return el.textContent || "";
+    if (el.localName !== "path" && el.localName !== "use") return null;
+    var code = el.getAttribute("data-c") || "";
+    if (!/^[0-9A-Fa-f]+$/.test(code)) return null;
+    var cp = parseInt(code, 16);
+    if (!cp || cp > 0x10ffff) return null;
+    return String.fromCodePoint(cp);
+  }
+
+  function allocatedWidth(group) {
+    var next = group.nextElementSibling;
+    if (next) return translateX(next) - translateX(group);
+    var max = 0;
+    var child = group.firstElementChild;
+    while (child) {
+      var nextChild = child.nextElementSibling;
+      var width = nextChild ? translateX(nextChild) - translateX(child) : 700;
+      max = Math.max(max, translateX(child) + Math.max(width, 0));
+      child = nextChild;
+    }
+    return max;
+  }
+
+  function depth(el) {
+    var n = 0;
+    while (el) {
+      n += 1;
+      el = el.parentElement;
+    }
+    return n;
+  }
+
+  function reflowGroup(group, oldWidth) {
+    var chars = "";
+    var fontSize = 884;
+    var child = group.firstElementChild;
+    while (child) {
+      var ch = pieceChar(child);
+      if (ch == null) return;
+      if (child.localName === "text") {
+        var size = parseFloat(child.getAttribute("font-size"));
+        if (size) fontSize = size;
+      }
+      chars += String(ch).replace(/\u00a0/g, " ");
+      child = child.nextElementSibling;
+    }
+    if (!chars) return;
+    var lead = 0;
+    while (lead < chars.length && chars.charAt(lead) === " ") lead += 1;
+    var trail = 0;
+    while (trail < chars.length - lead && chars.charAt(chars.length - 1 - trail) === " ") trail += 1;
+    var core = chars.slice(lead, chars.length - trail);
+    ctx.font = "600 " + fontSize + "px " + family;
+    // Canvas drops a trailing space, and SVG does the same, so the gap
+    // after a word like "\text{если }" disappeared. Keep that gap as its
+    // own advance and draw only the visible glyphs.
+    var spaceW = ctx.measureText("\u00a0").width;
+    if (!(spaceW > 0)) spaceW = ctx.measureText("n n").width - ctx.measureText("nn").width;
+    var leadW = spaceW > 0 ? spaceW * lead : 0;
+    var trailW = spaceW > 0 ? spaceW * trail : 0;
+    var coreW = core ? ctx.measureText(core).width : 0;
+    var total = leadW + coreW + trailW;
+    if (!(total > 0)) return;
+    while (group.firstChild) group.removeChild(group.firstChild);
+    var text = null;
+    if (core) {
+      text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("data-dg-text", "true");
+      text.setAttribute("transform", (leadW ? "translate(" + (Math.round(leadW * 100) / 100) + ",0) " : "") + "scale(1,-1)");
+      text.setAttribute("font-size", String(fontSize));
+      text.setAttribute("font-family", family);
+      text.setAttribute("font-weight", "600");
+      text.setAttribute("font-style", "normal");
+      text.setAttributeNS("http://www.w3.org/XML/1998/namespace", "xml:space", "preserve");
+      text.setAttribute("textLength", String(Math.round(coreW * 100) / 100));
+      text.setAttribute("lengthAdjust", "spacing");
+      text.textContent = core;
+      group.appendChild(text);
+    }
+    var inkRight = leadW + coreW;
+    if (text) {
+      try {
+        var bb = text.getBBox();
+        if (isFinite(bb.x) && isFinite(bb.width)) inkRight = leadW + bb.x + bb.width;
+      } catch (e) {}
+    }
+    // The next symbol can paint to the left of its origin (arrow head,
+    // italic side bearing) and swallow a trailing space. Push it until the
+    // gap between the two ink boxes is the space that was typed.
+    var overhang = 0;
+    var next = group.nextElementSibling;
+    if (trail && next && next.getBBox) {
+      try {
+        var nb = next.getBBox();
+        if (isFinite(nb.x) && nb.x < 0) overhang = Math.min(-nb.x * localScale(next), fontSize);
+      } catch (e) {}
+    }
+    var gap = (trail || lead) ? inkRight + trailW + overhang : total;
+    if (oldWidth != null) shiftFollowing(group, oldWidth - gap);
+  }
+
+  function scrollHost(box) {
+    var host = box.parentElement;
+    if (host && host.classList.contains("dg-math-frame")) host = host.parentElement;
+    return host;
+  }
+
+  function formulaOverflows(box) {
+    var svg = box.querySelector("svg");
+    var host = scrollHost(box);
+    if (!svg || !host) return false;
+    return svg.getBoundingClientRect().width > host.clientWidth + 4;
+  }
+
+  function pinOrigin(box) {
+    var origin = parseFloat(box.dataset.dgPinOrigin || "");
+    return origin === origin ? origin : 0;
+  }
+
+  function markFades(frame, box) {
+    var hidden = Math.max(0, box.scrollWidth - box.clientWidth);
+    // The pinned offset is the start of the formula. Padding or a centering
+    // spacer can sit before it, and that must not look like a left scroll.
+    var leftDistance = Math.max(0, box.scrollLeft - pinOrigin(box));
+    var rightDistance = Math.max(0, hidden - box.scrollLeft);
+    // Full strength matches the 72px edge gradient. A few pixels of overflow
+    // stay faint; the fade grows with how far the ink sits past the edge.
+    var ramp = 72;
+    var leftFade = frame.querySelector(".dg-math-fade-left");
+    var rightFade = frame.querySelector(".dg-math-fade-right");
+    if (leftFade) leftFade.style.opacity = String(Math.min(1, leftDistance / ramp));
+    if (rightFade) rightFade.style.opacity = String(Math.min(1, rightDistance / ramp));
+  }
+
+  function ensureFrame(box) {
+    var frame = box.parentElement;
+    if (frame && frame.classList.contains("dg-math-frame")) return frame;
+    frame = document.createElement("span");
+    frame.className = "dg-math-frame";
+    box.parentNode.insertBefore(frame, box);
+    frame.appendChild(box);
+    ["left", "right"].forEach(function (side) {
+      var fade = document.createElement("span");
+      fade.className = "dg-math-fade dg-math-fade-" + side;
+      fade.setAttribute("aria-hidden", "true");
+      frame.appendChild(fade);
+    });
+    box.addEventListener("scroll", function () { markFades(frame, box); }, { passive: true });
+    return frame;
+  }
+
+  function releaseFrame(box) {
+    var frame = box.parentElement;
+    if (!frame || !frame.classList.contains("dg-math-frame")) return;
+    frame.parentNode.insertBefore(box, frame);
+    frame.remove();
+  }
+
+  function pageBackground() {
+    var el = document.querySelector(".content") || document.body;
+    var bg = "transparent";
+    while (el) {
+      bg = getComputedStyle(el).backgroundColor;
+      if (bg && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)") return bg;
+      el = el.parentElement;
+    }
+    return getComputedStyle(document.body).backgroundColor;
+  }
+
+  function pinFormulaLeft(box) {
+    if (box.dataset.dgPinned) return;
+    box.dataset.dgPinOrigin = "0";
+    box.scrollLeft = 0;
+    var svg = box.querySelector("svg");
+    if (svg) {
+      var gap = svg.getBoundingClientRect().left - box.getBoundingClientRect().left;
+      if (gap > 1) {
+        box.dataset.dgPinOrigin = String(gap);
+        box.scrollLeft = gap;
+        box.dataset.dgPinOrigin = String(box.scrollLeft);
+      }
+    }
+    box.dataset.dgPinned = "1";
+  }
+
+  function syncMobileMath() {
+    var compact = window.matchMedia("(max-width: 1000px)").matches;
+    if (compact) {
+      document.documentElement.style.setProperty("--dg-fade-bg", pageBackground());
+    }
+    document.querySelectorAll(".content mjx-container").forEach(function (box) {
+      if (!box.querySelector("svg")) return;
+      if (!compact || !formulaOverflows(box)) {
+        box.classList.remove("dg-math-xscroll");
+        delete box.dataset.dgPinned;
+        delete box.dataset.dgPinOrigin;
+        releaseFrame(box);
+        return;
+      }
+      var frame = ensureFrame(box);
+      frame.classList.toggle("dg-math-frame-block", box.getAttribute("display") === "true");
+      box.classList.add("dg-math-xscroll");
+      pinFormulaLeft(box);
+      markFades(frame, box);
+    });
+  }
+
+  document.querySelectorAll("mjx-container svg").forEach(function (svg) {
+    var groups = Array.prototype.slice.call(svg.querySelectorAll('g[data-mml-node="mtext"]'));
+    var widths = new Map();
+    groups.forEach(function (group) { widths.set(group, allocatedWidth(group)); });
+    groups.sort(function (a, b) { return depth(b) - depth(a); });
+    groups.forEach(function (group) { reflowGroup(group, widths.get(group)); });
+  });
+  document.documentElement.classList.remove("dg-math-pending");
+  syncMobileMath();
+  window.addEventListener("resize", function () {
+    window.requestAnimationFrame(syncMobileMath);
+  });
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () {
+      document.querySelectorAll(".content mjx-container").forEach(function (box) {
+        delete box.dataset.dgPinned;
+        delete box.dataset.dgPinOrigin;
+      });
+      syncMobileMath();
+    });
+  }
+})();
+</script>
