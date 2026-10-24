@@ -13,6 +13,10 @@ const deadlinesClientSource = fs
   .readFileSync(path.join(__dirname, "deadlinesCore.js"), "utf8")
   .replace(/\nif \(typeof module === "object"[\s\S]*$/, "\n");
 
+const tileLabelInkSource = fs
+  .readFileSync(path.join(__dirname, "tileLabelInk.js"), "utf8")
+  .replace(/\nif \(typeof module === "object"[\s\S]*$/, "\n");
+
 function jsonForInlineScript(value) {
   return JSON.stringify(value)
     .replace(/</g, "\\u003c")
@@ -38,6 +42,7 @@ function userComputed(data) {
       (data.page && data.page.filePathStem) || ""
     ),
     deadlinesClientSource,
+    tileLabelInkSource,
   };
 }
 

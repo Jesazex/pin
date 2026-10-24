@@ -73,6 +73,7 @@
       // Opening a note by a link should reveal it in the side menu. Alpine
       // persist reads these keys at init, so write them before Alpine runs.
       (function () {
+        {{ userComputed.tileLabelInkSource | safe }}
         var active = document.querySelector("a.notelink.active-note");
         if (active) {
           var node = active.parentElement;
@@ -92,8 +93,8 @@
           });
         }
 
-        // Equal gap from the tile border to the top and bottom of the painted
-        // letters, including descenders and accents.
+        // Equal gap from the tile border to the flat letter line. Descenders
+        // (р) and marks (Й) stay visible but do not shift that line.
         var inkCanvas;
         function labelInk(el) {
           var tile = el.closest("a.notelink, .foldername-wrapper, button.deadline-table-open");
@@ -114,10 +115,18 @@
           var fontAscent = metrics.fontBoundingBoxAscent;
           var fontDescent = metrics.fontBoundingBoxDescent;
           if (!fontAscent && fontAscent !== 0) return;
+          var core = dgCoreLabelInk(text, function (ch) {
+            var glyph = ctx.measureText(ch);
+            return {
+              ascent: glyph.actualBoundingBoxAscent || 0,
+              descent: glyph.actualBoundingBoxDescent || 0,
+            };
+          });
+          if (!core || !(core.ascent > 0)) return;
           var halfLeading = (elRect.height - (fontAscent + fontDescent)) / 2;
           var baseline = elRect.top + halfLeading + fontAscent;
-          var inkTop = baseline - metrics.actualBoundingBoxAscent;
-          var inkBottom = baseline + metrics.actualBoundingBoxDescent;
+          var inkTop = baseline - core.ascent;
+          var inkBottom = baseline + core.descent;
           var delta = ((tileRect.bottom - inkBottom) - (inkTop - tileRect.top)) / 2;
           if (Math.abs(delta) < 0.4) el.style.top = "";
           else el.style.top = delta.toFixed(2) + "px";
