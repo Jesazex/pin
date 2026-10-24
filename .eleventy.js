@@ -109,6 +109,11 @@ const {
 } = require("./src/helpers/userSetup");
 const pluginLoader = require("./src/helpers/pluginLoader");
 const { copyLectureMarkdown } = require("./src/helpers/filetreeUtils");
+const {
+  readPublishedDeadlines,
+  clearPublishedDeadlinesCache,
+  rewriteDeadlineWikilinks,
+} = require("./src/helpers/deadlinesUtils");
 
 function getAnchorLink(filePath, linkTitle) {
   const { attributes, innerHTML } = getAnchorAttributes(filePath, linkTitle);
@@ -331,18 +336,17 @@ module.exports = function(eleventyConfig) {
   });
 
   eleventyConfig.addFilter("link", function(str) {
-    return (
-      str &&
-      str.replace(/\[\[(.*?\|.*?)\]\]/g, function(match, p1) {
-        // MathJax can emit sequences that look like wikilinks.
-        if (p1.indexOf("],[") > -1 || p1.indexOf('"$"') > -1) {
-          return match;
-        }
-        const [fileLink, linkTitle] = p1.split("|");
+    if (!str) return str;
+    const withTables = rewriteDeadlineWikilinks(str, readPublishedDeadlines());
+    return withTables.replace(/\[\[(.*?\|.*?)\]\]/g, function(match, p1) {
+      // MathJax can emit sequences that look like wikilinks.
+      if (p1.indexOf("],[") > -1 || p1.indexOf('"$"') > -1) {
+        return match;
+      }
+      const [fileLink, linkTitle] = p1.split("|");
 
-        return getAnchorLink(fileLink, linkTitle);
-      })
-    );
+      return getAnchorLink(fileLink, linkTitle);
+    });
   });
 
   // Resolve markdown-style relative links to .md files (e.g. [X](../a/b.md))
@@ -540,6 +544,7 @@ module.exports = function(eleventyConfig) {
   eleventyConfig.addPassthroughCopy({ "src/site/logo.*": "/" });
   eleventyConfig.on("eleventy.before", () => {
     anchorAttributesCache.clear();
+    clearPublishedDeadlinesCache();
   });
   eleventyConfig.addWatchTarget(FAVICON_SOURCE);
   eleventyConfig.addPlugin(faviconsPlugin, { outputDir: "dist" });

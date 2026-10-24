@@ -9,6 +9,12 @@
                    href="{{fileOrFolder.permalink}}">
                     <span class="filename" data-note-icon="{{fileOrFolder.noteIcon}}">{{fileOrFolder.name}}</span>
                 </a>
+            {% elif fileOrFolder.isFolder and fileOrFolder.deadlineTable %}
+                <div class="folder inner-folder deadline-folder" data-folder-key="{{ currentPath | escape }}">
+                    <button type="button" class="foldername-wrapper deadline-table-open" data-open-deadline-table>
+                        <span class="foldername">{{fileOrFolderName}}</span>
+                    </button>
+                </div>
             {% elif fileOrFolder.isFolder%}
                 <div class="folder inner-folder" data-folder-key="{{ currentPath | escape }}" x-data="{isOpen: $persist(false).as({{currentPath | dump}}), toggleFolder() { this.isOpen = !this.isOpen; if (!this.isOpen && window.dgCollapseNestedFolders) { var folder = (this.$el && this.$el.closest) ? (this.$el.closest('.inner-folder') || this.$el) : this.$el; window.dgCollapseNestedFolders(folder); } }}">
                     <div class="foldername-wrapper align-icon" role="button" tabindex="0" @click.stop="toggleFolder()" @keydown.enter.prevent="toggleFolder()" @keydown.space.prevent="toggleFolder()">
@@ -55,7 +61,6 @@
         {% endfor %}
         {% set slotName = "filetree.actions" %}{% include "components/pluginSlot.njk" %}
          <div class="folder filetree-scroll" x-data="{isOpen: true}">
-               {% include "components/deadlines.njk" %}
                {%- for fileOrFolderName, fileOrFolder in filetree -%}
                   {{menuItem(fileOrFolderName, fileOrFolder, 0, fileOrFolderName)}}
                {%- endfor -%}
@@ -63,6 +68,7 @@
       </nav>
       </div>
     </div>
+    {% include "components/deadlines.njk" %}
     <script>
       // Opening a note by a link should reveal it in the side menu. Alpine
       // persist reads these keys at init, so write them before Alpine runs.

@@ -78,7 +78,7 @@ permalink: "notes/{{ page.fileSlug | slugify }}/"
         {% include imp %}
       {% endfor %}
     </main>
-    {% if "Дедлайны" in (page.inputPath or "") %}
+    {% if userComputed and userComputed.insideDeadlines %}
     <script>
     (function () {
       {{ userComputed.deadlinesClientSource | safe }}

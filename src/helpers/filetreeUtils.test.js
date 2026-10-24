@@ -5,14 +5,16 @@ import { describe, it, expect } from "vitest";
 import { copyLectureMarkdown, getFileTree } from "./filetreeUtils.js";
 
 // Helper to build a minimal note object for testing
-function makeNote(filePathStem, data = {}) {
-  return {
+function makeNote(filePathStem, data = {}, body = "") {
+  const note = {
     filePathStem: `/notes${filePathStem}`,
     data: {
       permalink: filePathStem,
       ...data,
     },
   };
+  if (body) note.template = { inputContent: body };
+  return note;
 }
 
 describe("filetreeUtils", () => {
@@ -250,7 +252,7 @@ describe("filetreeUtils", () => {
       expect(tree["secret.md"].hide).toBe(true);
     });
 
-    it("labels the welcome note Главная and omits the deadlines folder", () => {
+    it("labels the welcome note Главная and keeps an unnamed deadlines folder", () => {
       const data = {
         collections: {
           note: [
@@ -263,8 +265,26 @@ describe("filetreeUtils", () => {
       const tree = getFileTree(data);
       expect(tree["Добро пожаловать!.md"].name).toBe("Главная");
       expect(tree["Добро пожаловать!.md"].permalink).toBe("/");
-      expect(tree["Дедлайны"]).toBeUndefined();
+      expect(tree["Дедлайны"].isFolder).toBe(true);
+      expect(tree["Дедлайны"].deadlineTable).toBeUndefined();
+      expect(tree["Дедлайны"]["ДЗ"].isFolder).toBe(true);
       expect(tree["Лекции"].isFolder).toBe(true);
+    });
+
+    it("marks a qualified deadlines folder without exposing the flag as a child", () => {
+      const data = {
+        collections: {
+          note: [
+            makeNote("/Добро пожаловать!", { tags: ["gardenEntry"], Deadlines: "Дедлайны" }),
+            makeNote("/Дедлайны/ДЗ/Физика", {}, "## На 17 сентября\n"),
+            makeNote("/Лекции/Физика/Физика 1101"),
+          ],
+        },
+      };
+      const tree = getFileTree(data);
+      expect(tree["Дедлайны"].deadlineTable).toBe(true);
+      expect(Object.keys(tree["Дедлайны"])).toContain("ДЗ");
+      expect(Object.keys(tree["Дедлайны"])).not.toContain("deadlineTable");
     });
 
     it("links lecture files to a downloadable markdown copy", () => {

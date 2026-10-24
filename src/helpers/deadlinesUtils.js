@@ -1,4 +1,8 @@
 const fs = require("fs");
+const path = require("path");
+const matter = require("gray-matter");
+const matterOptions = require("./matterOptions");
+const { frontmatterIsHomePage } = require("./homePage");
 const { headerToId } = require("./utils");
 const {
   moscowToday,
@@ -21,7 +25,121 @@ const {
   normalizeTaskLabel,
 } = require("./deadlinesCore");
 
-const ROOT_FOLDER = "Дедлайны";
+function noteData(item) {
+  return (item && item.data) || {};
+}
+
+function isHomeNote(item) {
+  const data = noteData(item);
+  if (frontmatterIsHomePage(data)) return true;
+  const flag = data["dg-home"];
+  return flag === true || flag === "true";
+}
+
+function deadlinesFolderName(data) {
+  const notes = (data && data.collections && data.collections.note) || [];
+  for (const item of notes) {
+    if (!isHomeNote(item)) continue;
+    const raw = noteData(item).Deadlines;
+    const fallback = noteData(item).deadlines;
+    const name = typeof raw === "string" ? raw : fallback;
+    return typeof name === "string" ? name.trim() : "";
+  }
+  return "";
+}
+
+function folderQualifies(data, folderName) {
+  if (!folderName) return false;
+  const notes = (data && data.collections && data.collections.note) || [];
+  let nested = false;
+  let dated = false;
+  for (const item of notes) {
+    const parts = notePathParts(item);
+    if (parts[0] !== folderName || parts.length < 3) continue;
+    nested = true;
+    if (dated) continue;
+    const headings = extractHeadings(readNoteBody(item));
+    if (headings.some((heading) => parseDateHeading(heading))) dated = true;
+  }
+  return nested && dated;
+}
+
+function activeDeadlinesFolder(data) {
+  const name = deadlinesFolderName(data);
+  if (!name || !folderQualifies(data, name)) return "";
+  return name;
+}
+
+let publishedDeadlinesCache = null;
+
+function clearPublishedDeadlinesCache() {
+  publishedDeadlinesCache = null;
+}
+
+function walkMarkdown(dir, out) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walkMarkdown(full, out);
+    else if (/\.(md|markdown)$/i.test(entry.name)) out.push(full);
+  }
+}
+
+function markdownHasDateHeading(filePath) {
+  let raw;
+  try {
+    raw = fs.readFileSync(filePath, "utf8");
+  } catch {
+    return false;
+  }
+  return extractHeadings(stripFrontMatter(raw)).some((heading) => parseDateHeading(heading));
+}
+
+// The wikilink filter runs outside the page data cascade, so it reads the
+// home note from disk. Cleared on eleventy.before.
+function readPublishedDeadlines(notesDir) {
+  if (publishedDeadlinesCache) return publishedDeadlinesCache;
+  const root = notesDir || path.join("src", "site", "notes");
+  const files = [];
+  walkMarkdown(root, files);
+  let name = "";
+  for (const file of files) {
+    let data;
+    try {
+      data = matter(fs.readFileSync(file, "utf8"), matterOptions).data;
+    } catch {
+      continue;
+    }
+    const flag = data && data["dg-home"];
+    const home = frontmatterIsHomePage(data) || flag === true || flag === "true";
+    if (!home) continue;
+    const raw = data.Deadlines != null ? data.Deadlines : data.deadlines;
+    name = typeof raw === "string" ? raw.trim() : "";
+    break;
+  }
+  let qualified = false;
+  if (name) {
+    const folder = path.join(root, name);
+    let subs = [];
+    try {
+      subs = fs.readdirSync(folder, { withFileTypes: true }).filter((entry) => entry.isDirectory());
+    } catch {
+      subs = [];
+    }
+    qualified = subs.some((sub) => {
+      const nested = [];
+      walkMarkdown(path.join(folder, sub.name), nested);
+      return nested.some((file) => markdownHasDateHeading(file));
+    });
+  }
+  publishedDeadlinesCache = { name, qualified };
+  return publishedDeadlinesCache;
+}
 
 function extractHeadings(markdown) {
   if (!markdown) return [];
@@ -68,8 +186,8 @@ function getControlDeadlineCandidates(data) {
 
   for (const item of notes) {
     const parts = notePathParts(item);
-    if (parts.length < 3) continue;
-    if (parts[0] !== ROOT_FOLDER) continue;
+    const folder = activeDeadlinesFolder(data);
+    if (!folder || parts.length < 3 || parts[0] !== folder) continue;
 
     const typeName = parts[1];
     const subjectName = parts[parts.length - 1];
@@ -199,10 +317,11 @@ function getControlSubjects(data) {
   const notes = (data.collections && data.collections.note) || [];
   const order = (data && data.navigationOrder) || {};
   const byType = new Map();
+  const folder = activeDeadlinesFolder(data);
 
   for (const item of notes) {
     const parts = notePathParts(item);
-    if (parts.length < 3 || parts[0] !== ROOT_FOLDER) continue;
+    if (!folder || parts.length < 3 || parts[0] !== folder) continue;
     const typeName = parts[1];
     const subjectName = parts[parts.length - 1];
     if (!byType.has(typeName)) byType.set(typeName, []);
@@ -214,7 +333,7 @@ function getControlSubjects(data) {
 
   const catalog = {};
   byType.forEach((subjects, typeName) => {
-    const orderList = order[`/${ROOT_FOLDER}/${typeName}`] || [];
+    const orderList = order[`/${folder}/${typeName}`] || [];
     subjects.sort((a, b) => {
       const ia = orderList.indexOf(a.subjectName);
       const ib = orderList.indexOf(b.subjectName);
@@ -229,10 +348,11 @@ function getControlSubjects(data) {
 }
 
 function controlNoteIdentity(data) {
+  const folder = activeDeadlinesFolder(data);
   const stem = (data && data.page && data.page.filePathStem) || "";
   const parts = String(stem).split("/").filter(Boolean);
-  const rootAt = parts.indexOf(ROOT_FOLDER);
-  if (rootAt < 0 || parts.length < rootAt + 3) return null;
+  const rootAt = folder ? parts.indexOf(folder) : -1;
+  if (!folder || rootAt < 0 || parts.length < rootAt + 3) return null;
   return {
     typeName: parts[rootAt + 1],
     subjectName: parts[parts.length - 1],
@@ -249,7 +369,8 @@ function getControlTaskCatalog(data) {
 
   for (const item of notes) {
     const parts = notePathParts(item);
-    if (parts.length < 3 || parts[0] !== ROOT_FOLDER) continue;
+    const folder = activeDeadlinesFolder(data);
+    if (!folder || parts.length < 3 || parts[0] !== folder) continue;
     const typeName = parts[1];
     const subjectName = parts[parts.length - 1];
     const sections = parseControlSections(readNoteBody(item));
@@ -294,8 +415,39 @@ function getControlTaskCatalog(data) {
   return catalog;
 }
 
+function escapeHtmlText(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function deadlineTableAnchor(label) {
+  return `<a href="#дедлайны" class="internal-link" data-open-deadline-table>${escapeHtmlText(label)}</a>`;
+}
+
+// [[/Folder|label]] and [[/Folder]] open the table when that root folder
+// qualifies. Obsidian writes the pipe as \|. Any other wikilink is left as is.
+function rewriteDeadlineWikilinks(str, published) {
+  if (!str || !published || !published.qualified || !published.name) return str;
+  const escaped = published.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const piped = new RegExp(`\\[\\[\\s*/${escaped}\\s*\\\\?\\|([^\\]]*)\\]\\]`, "g");
+  const unpiped = new RegExp(`\\[\\[\\s*/${escaped}\\s*\\]\\]`, "g");
+  return String(str)
+    .replace(piped, (_, label) => {
+      const text = String(label).trim() || published.name;
+      return deadlineTableAnchor(text);
+    })
+    .replace(unpiped, () => deadlineTableAnchor(published.name));
+}
+
 module.exports = {
-  ROOT_FOLDER,
+  deadlinesFolderName,
+  folderQualifies,
+  activeDeadlinesFolder,
+  readPublishedDeadlines,
+  clearPublishedDeadlinesCache,
+  rewriteDeadlineWikilinks,
   moscowToday,
   parseDateHeading,
   resolveUpcomingDate,

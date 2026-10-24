@@ -26,7 +26,31 @@ import {
   visibleTaskLabel,
   parseControlSections,
   getControlSubjects,
+  activeDeadlinesFolder,
+  deadlinesFolderName,
+  folderQualifies,
+  readPublishedDeadlines,
+  clearPublishedDeadlinesCache,
 } from "./deadlinesUtils.js";
+
+function deadlineHomeNote(name = "Дедлайны") {
+  return {
+    filePathStem: "/notes/Добро пожаловать!",
+    url: "/",
+    data: { tags: ["gardenEntry"], Deadlines: name },
+  };
+}
+
+function withDeadlineHome(data, name) {
+  const collections = (data && data.collections) || {};
+  return {
+    ...data,
+    collections: {
+      ...collections,
+      note: [deadlineHomeNote(name), ...(collections.note || [])],
+    },
+  };
+}
 import {
   taskStorageKey,
   dayPageHref,
@@ -204,7 +228,7 @@ describe("deadlinesUtils", () => {
   it("builds deadline lines from control-form notes", () => {
     const today = moscowToday(new Date(Date.UTC(2026, 8, 28, 22, 0, 0)));
     const lines = getControlDeadlines(
-      {
+      withDeadlineHome({
         collections: {
           note: [
             {
@@ -216,7 +240,7 @@ describe("deadlinesUtils", () => {
             },
           ],
         },
-      },
+      }),
       today
     );
     expect(lines).toHaveLength(1);
@@ -229,7 +253,7 @@ describe("deadlinesUtils", () => {
   });
 
   it("recomputes the nearest line when Moscow today changes", () => {
-    const data = {
+    const data = withDeadlineHome({
       collections: {
         note: [
           {
@@ -248,7 +272,7 @@ describe("deadlinesUtils", () => {
           },
         ],
       },
-    };
+    });
     const september29 = moscowToday(new Date(Date.UTC(2026, 8, 28, 22, 0, 0)));
     const october1 = moscowToday(new Date(Date.UTC(2026, 8, 30, 21, 0, 0)));
     const candidates = getControlDeadlineCandidates(data);
@@ -473,7 +497,7 @@ describe("deadlinesUtils", () => {
   });
 
   it("lists every subject file for a deadline column", () => {
-    const subjects = getControlSubjects({
+    const subjects = getControlSubjects(withDeadlineHome({
       navigationOrder: {
         "/Дедлайны/ДЗ": ["Физика", "Матан"],
         "/Дедлайны/ЛР": ["Информатика"],
@@ -481,12 +505,16 @@ describe("deadlinesUtils", () => {
       collections: {
         note: [
           { filePathStem: "/notes/Дедлайны/ДЗ/Матан", url: "/dz/matan/" },
-          { filePathStem: "/notes/Дедлайны/ДЗ/Физика", url: "/dz/fizika/" },
+          {
+            filePathStem: "/notes/Дедлайны/ДЗ/Физика",
+            url: "/dz/fizika/",
+            template: { inputContent: "## На 17 сентября\n" },
+          },
           { filePathStem: "/notes/Дедлайны/ЛР/Информатика", url: "/lr/inf/" },
           { filePathStem: "/notes/Лекции/Физика/Физика 1101", url: "/lek/" },
         ],
       },
-    });
+    }));
     expect(subjects["ДЗ"].map((item) => item.subjectName)).toEqual(["Физика", "Матан"]);
     expect(subjects["ДЗ"][0].href).toBe("/dz/fizika/");
     expect(subjects["ЛР"].map((item) => item.subjectName)).toEqual(["Информатика"]);
@@ -494,16 +522,26 @@ describe("deadlinesUtils", () => {
   });
 
   it("names the control note from its path", () => {
+    const home = withDeadlineHome({
+      collections: {
+        note: [
+          {
+            filePathStem: "/notes/Дедлайны/ДЗ/Физика",
+            template: { inputContent: "## На 17 сентября\n" },
+          },
+        ],
+      },
+    });
     expect(
-      controlNoteIdentity({ page: { filePathStem: "/notes/Дедлайны/ДЗ/Физика" } })
+      controlNoteIdentity({ ...home, page: { filePathStem: "/notes/Дедлайны/ДЗ/Физика" } })
     ).toEqual({ typeName: "ДЗ", subjectName: "Физика" });
     expect(
-      controlNoteIdentity({ page: { filePathStem: "/notes/Лекции/Физика/Физика 1101" } })
+      controlNoteIdentity({ ...home, page: { filePathStem: "/notes/Лекции/Физика/Физика 1101" } })
     ).toBeNull();
   });
 
   it("builds a day catalog with shared checkbox ids", () => {
-    const catalog = getControlTaskCatalog({
+    const catalog = getControlTaskCatalog(withDeadlineHome({
       collections: {
         note: [
           {
@@ -526,7 +564,7 @@ describe("deadlinesUtils", () => {
           },
         ],
       },
-    });
+    }));
 
     const september17 = catalog["17-9"];
     expect(september17.groups.map((group) => group.title)).toEqual(["Матан (ДЗ)", "Физика (ДЗ)"]);
@@ -601,7 +639,7 @@ describe("shared task checkboxes", () => {
       "## На 25 Сентября",
       "- [ ] 1.66",
     ].join("\n");
-    const catalog = getControlTaskCatalog({
+    const catalog = getControlTaskCatalog(withDeadlineHome({
       collections: {
         note: [
           {
@@ -610,7 +648,7 @@ describe("shared task checkboxes", () => {
           },
         ],
       },
-    });
+    }));
     const html = MarkdownIt({ breaks: true, html: true })
       .use(taskCheckbox, { disabled: true, divWrap: false, ulClass: "task-list", liClass: "task-list-item" })
       .render(markdown);
@@ -729,5 +767,66 @@ describe("shared task checkboxes", () => {
     expect(page.children).toHaveLength(1);
     expect(page.children[0].textContent).toBe(emptyDayText);
     expect(dayPageHref(19, 9)).toBe("/den/?d=19-10");
+  });
+});
+
+describe("deadlines folder from the home note", () => {
+  afterEach(() => {
+    clearPublishedDeadlinesCache();
+  });
+
+  it("stays inactive without the Deadlines property", () => {
+    const data = {
+      collections: {
+        note: [
+          {
+            filePathStem: "/notes/Дедлайны/ДЗ/Физика",
+            template: { inputContent: "## На 17 сентября\n" },
+          },
+        ],
+      },
+    };
+    expect(deadlinesFolderName(data)).toBe("");
+    expect(activeDeadlinesFolder(data)).toBe("");
+    expect(getControlDeadlineCandidates(data)).toEqual([]);
+  });
+
+  it("stays a normal folder when nested notes have no date headings", () => {
+    const data = withDeadlineHome({
+      collections: {
+        note: [
+          {
+            filePathStem: "/notes/Дедлайны/ДЗ/Физика",
+            template: { inputContent: "## Задание\n" },
+          },
+        ],
+      },
+    });
+    expect(deadlinesFolderName(data)).toBe("Дедлайны");
+    expect(folderQualifies(data, "Дедлайны")).toBe(false);
+    expect(activeDeadlinesFolder(data)).toBe("");
+  });
+
+  it("uses a root folder named by the home note when it has dated headings", () => {
+    const data = withDeadlineHome(
+      {
+        collections: {
+          note: [
+            {
+              filePathStem: "/notes/Сроки/ДЗ/Физика",
+              template: { inputContent: "## На 20 октября, Пт\n" },
+            },
+          ],
+        },
+      },
+      "Сроки"
+    );
+    expect(activeDeadlinesFolder(data)).toBe("Сроки");
+    expect(getControlDeadlineCandidates(data).map((item) => item.subjectName)).toEqual(["Физика"]);
+  });
+
+  it("reads the published home note from disk", () => {
+    const found = readPublishedDeadlines(path.join(here, "../site/notes"));
+    expect(found).toEqual({ name: "Дедлайны", qualified: true });
   });
 });

@@ -5,6 +5,7 @@ const {
   pickControlDeadlines,
   controlNoteIdentity,
   getControlSubjects,
+  activeDeadlinesFolder,
 } = require("./deadlinesUtils");
 const { lectureDownloadFromStem } = require("./filetreeUtils");
 
@@ -25,11 +26,14 @@ function jsonForInlineScript(value) {
 
 function userComputed(data) {
   const candidates = getControlDeadlineCandidates(data);
+  const deadlinesFolder = activeDeadlinesFolder(data);
   return {
     controlDeadlines: pickControlDeadlines(candidates),
     controlDeadlineCandidatesJson: jsonForInlineScript(candidates),
     controlSubjectsJson: jsonForInlineScript(getControlSubjects(data)),
     controlNote: controlNoteIdentity(data),
+    deadlinesFolder,
+    insideDeadlines: Boolean(controlNoteIdentity(data)),
     lectureDownload: lectureDownloadFromStem(
       (data.page && data.page.filePathStem) || ""
     ),
