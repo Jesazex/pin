@@ -92,9 +92,8 @@
           });
         }
 
-        // Equal gap from the tile border to the top and bottom of the letters.
-        // text-box-trim does this when the browser has it; otherwise shift the
-        // label by the measured ink.
+        // Equal gap from the tile border to the top and bottom of the painted
+        // letters, including descenders and accents.
         var inkCanvas;
         function labelInk(el) {
           var tile = el.closest("a.notelink, .foldername-wrapper, button.deadline-table-open");
@@ -106,27 +105,19 @@
           var tileRect = tile.getBoundingClientRect();
           var elRect = el.getBoundingClientRect();
           if (tileRect.height < 1 || elRect.height < 1) return;
-          var inkTop = elRect.top;
-          var inkBottom = elRect.bottom;
-          var trimmed = false;
-          try {
-            trimmed = CSS.supports("text-box-trim", "trim-both") || CSS.supports("text-box", "trim-both cap alphabetic");
-          } catch (e) {}
-          if (!trimmed) {
-            if (!inkCanvas) inkCanvas = document.createElement("canvas");
-            var ctx = inkCanvas.getContext("2d");
-            if (!ctx || !ctx.measureText) return;
-            var cs = getComputedStyle(el);
-            ctx.font = cs.font;
-            var metrics = ctx.measureText(text);
-            var fontAscent = metrics.fontBoundingBoxAscent;
-            var fontDescent = metrics.fontBoundingBoxDescent;
-            if (!fontAscent && fontAscent !== 0) return;
-            var halfLeading = (elRect.height - (fontAscent + fontDescent)) / 2;
-            var baseline = elRect.top + halfLeading + fontAscent;
-            inkTop = baseline - metrics.actualBoundingBoxAscent;
-            inkBottom = baseline + metrics.actualBoundingBoxDescent;
-          }
+          if (!inkCanvas) inkCanvas = document.createElement("canvas");
+          var ctx = inkCanvas.getContext("2d");
+          if (!ctx || !ctx.measureText) return;
+          var cs = getComputedStyle(el);
+          ctx.font = cs.font;
+          var metrics = ctx.measureText(text);
+          var fontAscent = metrics.fontBoundingBoxAscent;
+          var fontDescent = metrics.fontBoundingBoxDescent;
+          if (!fontAscent && fontAscent !== 0) return;
+          var halfLeading = (elRect.height - (fontAscent + fontDescent)) / 2;
+          var baseline = elRect.top + halfLeading + fontAscent;
+          var inkTop = baseline - metrics.actualBoundingBoxAscent;
+          var inkBottom = baseline + metrics.actualBoundingBoxDescent;
           var delta = ((tileRect.bottom - inkBottom) - (inkTop - tileRect.top)) / 2;
           if (Math.abs(delta) < 0.4) el.style.top = "";
           else el.style.top = delta.toFixed(2) + "px";

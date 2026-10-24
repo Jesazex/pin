@@ -184,17 +184,14 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         color: inherit;
     }
 
-    // Cap-height to baseline, then the row centers that box. The gap from the
-    // tile edge to the top of the letters matches the gap down to the baseline.
+    // The line box has to include descenders (р, д) and accents (й).
+    // Centering uses the real ink, not the cap-to-baseline slice.
     .filename,
     .foldername,
     .tile-label {
         position: relative;
         top: 0;
-        line-height: 1;
-        text-box-trim: trim-both;
-        text-box-edge: cap alphabetic;
-        text-box: trim-both cap alphabetic;
+        line-height: 1.35;
     }
 
     .filename,
