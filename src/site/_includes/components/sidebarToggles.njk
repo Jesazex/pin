@@ -65,12 +65,16 @@
       let iconsReady = false;
       // Manual drag/keyboard resize sticks until a full reload.
       let leftWidthManual = false;
+      let rightWidthManual = false;
       // Floors so "Дедлайны" and the outline title always fit.
       let leftFloorPx = 0;
       let rightFloorPx = 0;
       let leftFitTries = 0;
       let leftFitTimer = 0;
+      let rightFitTries = 0;
+      let rightFitTimer = 0;
       let textProbe = null;
+      let outlineProbe = null;
 
       function isCompact() {
             return COMPACT_MQ.matches;
@@ -406,10 +410,15 @@
       }
       window.dgSyncFiletreeDeadlines = syncFiletreeDeadlines;
 
+      function quarterWidth() {
+            return Math.max(0, Math.floor(window.innerWidth * 0.25));
+      }
+
       function setPanelWidth(side, px, persist) {
             const value = clampPanelWidth(side, px);
             if (!value) return;
             if (persist && side === 'left') leftWidthManual = true;
+            if (persist && side === 'right') rightWidthManual = true;
             document.documentElement.style.setProperty(widthProp(side), value + 'px');
             const handle = document.querySelector(`[data-panel-resize="${side}"]`);
             if (handle) handle.setAttribute('aria-valuenow', String(value));
@@ -422,41 +431,55 @@
             }
       }
 
-      // Saved left width is only reapplied after a manual resize in this
-      // page view. A reload fits the labels again.
+      // Auto width may be wider than the headings need (the 180px floor) but
+      // never wider than a quarter of the viewport. A manual drag uses
+      // setPanelWidth instead, so it can stay wider than that quarter until
+      // the next reload.
+      function setAutoRightWidth(px) {
+            let value = clampPanelWidth('right', px);
+            const quarter = quarterWidth();
+            if (quarter > 0 && value > quarter) value = quarter;
+            if (!value) return;
+            const panel = panelEl('right');
+            const current = panel ? Math.round(panel.getBoundingClientRect().width) : 0;
+            if (current >= 24 && Math.abs(value - current) <= 2) return;
+            document.documentElement.style.setProperty('--dg-panel-right-width', value + 'px');
+            const handle = document.querySelector('[data-panel-resize="right"]');
+            if (handle) handle.setAttribute('aria-valuenow', String(value));
+            syncFiletreeDeadlines();
+      }
+
+      // Saved widths are only reapplied after a manual resize in this page
+      // view. A reload fits the labels and the outline again.
       function applyStoredWidths() {
             refreshPanelFloors();
             try {
                   const lim = panelLimits();
-                  let right = parseInt(localStorage.getItem(RIGHT_WIDTH_KEY), 10) || 0;
-                  if (right) right = Math.max(lim.rightMin, Math.min(lim.cap, right));
+                  let left = 0;
+                  let right = 0;
                   if (leftWidthManual) {
-                        let left = parseInt(localStorage.getItem(LEFT_WIDTH_KEY), 10) || 0;
+                        left = parseInt(localStorage.getItem(LEFT_WIDTH_KEY), 10) || 0;
                         if (left) left = Math.max(lim.leftMin, Math.min(lim.cap, left));
-                        if (left || right) {
-                              const fitted = fitStoredPair(left || 250, right || 350);
-                              if (left) left = countsOpen('left') ? fitted.left : left;
-                              if (right) right = countsOpen('right') ? fitted.right : right;
-                        }
+                  }
+                  if (rightWidthManual) {
+                        right = parseInt(localStorage.getItem(RIGHT_WIDTH_KEY), 10) || 0;
+                        if (right) right = Math.max(lim.rightMin, Math.min(lim.cap, right));
+                  }
+                  if (left || right) {
+                        const fitted = fitStoredPair(
+                              left || layoutWidth('left') || 250,
+                              right || layoutWidth('right') || 350
+                        );
+                        if (left && countsOpen('left')) left = fitted.left;
+                        if (right && countsOpen('right')) right = fitted.right;
                         if (left) setPanelWidth('left', left, false);
                         if (right) setPanelWidth('right', right, false);
-                        ensureRightTitle();
-                        return;
-                  }
-                  if (right) {
-                        const wrapper = panelEl('left');
-                        const leftGuess = wrapper
-                              ? Math.round(wrapper.getBoundingClientRect().width)
-                              : 0;
-                        const fitted = fitStoredPair(leftGuess >= 100 ? leftGuess : 250, right);
-                        right = countsOpen('right') ? fitted.right : right;
-                        setPanelWidth('right', right, false);
                   }
             } catch {
                   // ignore
             }
-            fitLeftPanelToLabels();
-            ensureRightTitle();
+            if (!leftWidthManual) fitLeftPanelToLabels();
+            if (!rightWidthManual) fitRightPanelToHeadings();
       }
 
       function refreshPanelFloors() {
@@ -464,41 +487,17 @@
             const left = btn ? labelPanelWidth(btn) : 0;
             if (left) leftFloorPx = left;
             const title = document.querySelector('#page-panel .toc-title');
-            const right = title ? outlineTitleWidth(title) : 0;
-            if (right) rightFloorPx = right;
-      }
-
-      // Panel width that keeps the outline title on one line, clear of the
-      // corner toggle (the title container's right padding).
-      function outlineTitleWidth(el) {
-            const panel = panelEl('right');
-            if (!panel || panel.getBoundingClientRect().width < 24 || !labelIsShown(el)) return 0;
-            const textW = measureLabelText(el);
-            if (!textW) return 0;
-            const panelRect = panel.getBoundingClientRect();
-            const textLeft = el.getBoundingClientRect().left;
-            const container = el.closest('.toc-title-container') || el;
-            const padR = parseFloat(getComputedStyle(container).paddingRight) || 0;
-            const after = panelRect.right - container.getBoundingClientRect().right;
-            return Math.ceil(textLeft - panelRect.left + textW + padR + Math.max(0, after) + 6);
-      }
-
-      function ensureRightTitle() {
-            if (!rightFloorPx) return;
-            const panel = panelEl('right');
-            const box = panel ? Math.round(panel.getBoundingClientRect().width) : 0;
-            let current = box;
-            if (current < 24) {
-                  current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--dg-panel-right-width'), 10) || 350;
-            }
-            if (current + 2 >= rightFloorPx) return;
-            setPanelWidth('right', rightFloorPx, false);
+            const right = title ? outlinePanelWidth(title) : 0;
+            const quarter = quarterWidth();
+            // A very long title must not force the drawer past a quarter of
+            // the screen. The floor is only a minimum; a drag can still go wider.
+            if (right) rightFloorPx = quarter > 0 ? Math.min(right, quarter) : right;
       }
 
       function refitPanels() {
             refreshPanelFloors();
             fitLeftPanelToLabels();
-            ensureRightTitle();
+            fitRightPanelToHeadings();
       }
 
       function measureLabelText(el) {
@@ -591,6 +590,106 @@
             const clamped = clampPanelWidth('left', target);
             if (!clamped || Math.abs(clamped - current) <= 2) return;
             setPanelWidth('left', target, false);
+      }
+
+      // Natural width of a title or TOC row, including a formula SVG. The
+      // live row is clipped by the panel (and mjx max-width), so measure a
+      // clone that is not inside .toc-container.
+      function measureOutlineContent(el) {
+            if (!outlineProbe) {
+                  outlineProbe = document.createElement('div');
+                  outlineProbe.setAttribute('aria-hidden', 'true');
+                  outlineProbe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;width:max-content;max-width:none;pointer-events:none;';
+                  document.body.appendChild(outlineProbe);
+            }
+            const cs = getComputedStyle(el);
+            const clone = el.cloneNode(true);
+            clone.style.font = cs.font;
+            clone.style.fontFamily = cs.fontFamily;
+            clone.style.fontSize = cs.fontSize;
+            clone.style.fontWeight = cs.fontWeight;
+            clone.style.fontStyle = cs.fontStyle;
+            clone.style.letterSpacing = cs.letterSpacing;
+            clone.style.textTransform = cs.textTransform;
+            clone.style.whiteSpace = 'nowrap';
+            clone.style.width = 'max-content';
+            clone.style.maxWidth = 'none';
+            clone.style.display = 'inline-block';
+            // A second copy of a formula's clip-path ids would steal the live
+            // SVG's paint while the clone is in the document.
+            const ids = [];
+            clone.querySelectorAll('[id]').forEach((node) => ids.push(node.id));
+            if (ids.length) {
+                  ids.sort((a, b) => b.length - a.length);
+                  let html = clone.innerHTML;
+                  ids.forEach((id) => {
+                        const next = 'dgm-' + id;
+                        html = html.replaceAll('id="' + id + '"', 'id="' + next + '"');
+                        html = html.replaceAll("id='" + id + "'", "id='" + next + "'");
+                        html = html.replaceAll('url(#' + id + ')', 'url(#' + next + ')');
+                        html = html.replaceAll('href="#' + id + '"', 'href="#' + next + '"');
+                        html = html.replaceAll("href='#" + id + "'", "href='#" + next + "'");
+                  });
+                  clone.innerHTML = html;
+            }
+            clone.querySelectorAll('mjx-assistive-mml').forEach((node) => {
+                  node.style.display = 'none';
+            });
+            clone.querySelectorAll('mjx-container, svg').forEach((node) => {
+                  node.style.maxWidth = 'none';
+                  node.style.overflow = 'visible';
+                  node.style.whiteSpace = 'nowrap';
+            });
+            outlineProbe.replaceChildren(clone);
+            const width = clone.getBoundingClientRect().width;
+            outlineProbe.replaceChildren();
+            return width;
+      }
+
+      // Drawer width that keeps this outline row on one line. Nested rows
+      // include their indent via the live left edge. The title container's
+      // right padding keeps the title clear of the corner toggle.
+      function outlinePanelWidth(el) {
+            const panel = panelEl('right');
+            if (!panel || panel.getBoundingClientRect().width < 24 || !labelIsShown(el)) return 0;
+            const contentW = measureOutlineContent(el);
+            if (!contentW) return 0;
+            const panelRect = panel.getBoundingClientRect();
+            const container = el.closest('.toc-title-container, .toc-container') || el;
+            const padR = parseFloat(getComputedStyle(container).paddingRight) || 0;
+            const after = panelRect.right - container.getBoundingClientRect().right;
+            const textLeft = el.getBoundingClientRect().left;
+            return Math.ceil(textLeft - panelRect.left + contentW + padR + Math.max(0, after) + 8);
+      }
+
+      // Resting width fits the title and every TOC row, and never exceeds a
+      // quarter of the viewport. A manual resize in this page view sticks.
+      function fitRightPanelToHeadings() {
+            if (rightWidthManual) return;
+            if (document.documentElement.classList.contains('panel-resizing')) return;
+            const panel = panelEl('right');
+            if (!panel) return;
+            if (panel.getBoundingClientRect().width < 24) {
+                  const collapsed = document.documentElement.classList.contains('right-panel-collapsed');
+                  if (!collapsed && rightFitTries < 10) {
+                        rightFitTries += 1;
+                        clearTimeout(rightFitTimer);
+                        rightFitTimer = setTimeout(fitRightPanelToHeadings, 70);
+                  }
+                  return;
+            }
+            rightFitTries = 0;
+            let needed = 0;
+            const title = document.querySelector('#page-panel .toc-title');
+            if (title) needed = outlinePanelWidth(title);
+            document.querySelectorAll('#page-panel .toc-container a').forEach((el) => {
+                  const width = outlinePanelWidth(el);
+                  if (width > needed) needed = width;
+            });
+            if (!needed) return;
+            const quarter = quarterWidth();
+            const target = quarter > 0 ? Math.min(needed, quarter) : needed;
+            setAutoRightWidth(target);
       }
 
       function bindResizer(el) {
@@ -731,6 +830,9 @@
                   document.fonts.ready.then(refitPanels);
             }
             document.addEventListener('alpine:initialized', () => {
+                  requestAnimationFrame(refitPanels);
+            });
+            document.addEventListener('dg-toc-refresh', () => {
                   requestAnimationFrame(refitPanels);
             });
             // Lucide may load after DOMContentLoaded.

@@ -198,11 +198,18 @@
   }
 
   function markFades(frame, box) {
-    var hidden = box.scrollWidth - box.clientWidth;
+    var hidden = Math.max(0, box.scrollWidth - box.clientWidth);
     // The pinned offset is the start of the formula. Padding or a centering
     // spacer can sit before it, and that must not look like a left scroll.
-    frame.classList.toggle("dg-math-can-left", box.scrollLeft > pinOrigin(box) + 2);
-    frame.classList.toggle("dg-math-can-right", hidden - box.scrollLeft > 2);
+    var leftDistance = Math.max(0, box.scrollLeft - pinOrigin(box));
+    var rightDistance = Math.max(0, hidden - box.scrollLeft);
+    // Full strength matches the 72px edge gradient. A few pixels of overflow
+    // stay faint; the fade grows with how far the ink sits past the edge.
+    var ramp = 72;
+    var leftFade = frame.querySelector(".dg-math-fade-left");
+    var rightFade = frame.querySelector(".dg-math-fade-right");
+    if (leftFade) leftFade.style.opacity = String(Math.min(1, leftDistance / ramp));
+    if (rightFade) rightFade.style.opacity = String(Math.min(1, rightDistance / ramp));
   }
 
   function ensureFrame(box) {
