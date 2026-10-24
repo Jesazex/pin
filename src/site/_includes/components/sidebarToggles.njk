@@ -92,11 +92,12 @@
             try {
                   const value = sessionStorage.getItem(key);
                   if (value === null) {
-                        return true;
+                        // The file list starts open. The outline starts closed.
+                        return key !== LEFT_KEY;
                   }
                   return value === '1';
             } catch {
-                  return true;
+                  return key !== LEFT_KEY;
             }
       }
 
@@ -414,6 +415,22 @@
             return Math.max(0, Math.floor(window.innerWidth * 0.25));
       }
 
+      function leftWidthBand() {
+            return {
+                  min: Math.max(0, Math.floor(window.innerWidth * 0.15)),
+                  max: quarterWidth(),
+            };
+      }
+
+      // Phone outline is an overlay, so the desktop quarter cap makes it a
+      // sliver. There it may grow up to the usual panel cap.
+      function rightWidthCap() {
+            if (isCompact()) {
+                  return Math.min(640, Math.max(180, Math.floor(window.innerWidth * 0.85)));
+            }
+            return quarterWidth();
+      }
+
       function setPanelWidth(side, px, persist) {
             const value = clampPanelWidth(side, px);
             if (!value) return;
@@ -435,10 +452,25 @@
       // never wider than a quarter of the viewport. A manual drag uses
       // setPanelWidth instead, so it can stay wider than that quarter until
       // the next reload.
+      function setAutoLeftWidth(px) {
+            let value = clampPanelWidth('left', px);
+            const band = leftWidthBand();
+            if (band.max > 0 && value > band.max) value = band.max;
+            if (band.min > 0 && value < band.min) value = band.min;
+            if (!value) return;
+            const panel = panelEl('left');
+            const current = panel ? Math.round(panel.getBoundingClientRect().width) : 0;
+            if (current >= 24 && Math.abs(value - current) <= 2) return;
+            document.documentElement.style.setProperty('--dg-panel-left-width', value + 'px');
+            const handle = document.querySelector('[data-panel-resize="left"]');
+            if (handle) handle.setAttribute('aria-valuenow', String(value));
+            syncFiletreeDeadlines();
+      }
+
       function setAutoRightWidth(px) {
             let value = clampPanelWidth('right', px);
-            const quarter = quarterWidth();
-            if (quarter > 0 && value > quarter) value = quarter;
+            const cap = rightWidthCap();
+            if (cap > 0 && value > cap) value = cap;
             if (!value) return;
             const panel = panelEl('right');
             const current = panel ? Math.round(panel.getBoundingClientRect().width) : 0;
@@ -488,10 +520,12 @@
             if (left) leftFloorPx = left;
             const title = document.querySelector('#page-panel .toc-title');
             const right = title ? outlinePanelWidth(title) : 0;
-            const quarter = quarterWidth();
-            // A very long title must not force the drawer past a quarter of
-            // the screen. The floor is only a minimum; a drag can still go wider.
-            if (right) rightFloorPx = quarter > 0 ? Math.min(right, quarter) : right;
+            const cap = rightWidthCap();
+            // A very long title must not force the drawer past its cap.
+            // The floor is only a minimum; a drag can still go wider.
+            if (right) rightFloorPx = cap > 0 ? Math.min(right, cap) : right;
+            const band = leftWidthBand();
+            if (left && band.max > 0) leftFloorPx = Math.min(leftFloorPx, band.max);
       }
 
       function refitPanels() {
@@ -586,10 +620,7 @@
             );
             const target = Math.max(resting, visible);
             if (!target) return;
-            const current = Math.round(wrapper.getBoundingClientRect().width);
-            const clamped = clampPanelWidth('left', target);
-            if (!clamped || Math.abs(clamped - current) <= 2) return;
-            setPanelWidth('left', target, false);
+            setAutoLeftWidth(target);
       }
 
       // Natural width of a title or TOC row, including a formula SVG. The
@@ -687,8 +718,8 @@
                   if (width > needed) needed = width;
             });
             if (!needed) return;
-            const quarter = quarterWidth();
-            const target = quarter > 0 ? Math.min(needed, quarter) : needed;
+            const cap = rightWidthCap();
+            const target = cap > 0 ? Math.min(needed, cap) : needed;
             setAutoRightWidth(target);
       }
 

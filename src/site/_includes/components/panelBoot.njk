@@ -9,18 +9,24 @@
             var compact = window.matchMedia('(max-width: 1000px)').matches;
             var leftRaw = sessionStorage.getItem(LEFT_KEY);
             var rightRaw = sessionStorage.getItem(RIGHT_KEY);
-            var leftCollapsed = leftRaw !== '0';
+            // Left starts open. Right stays closed until the reader opens it.
+            var leftCollapsed = leftRaw === '1';
             var rightCollapsed = rightRaw !== '0';
             // Mobile: only one panel open at a time.
             if (compact && !leftCollapsed && !rightCollapsed) {
                   rightCollapsed = true;
             }
-            // Both drawer widths are fitted after load. A saved drag must not
-            // survive a refresh. The right drawer starts at a quarter of the
-            // viewport — the same cap the heading fit uses — so the first
-            // paint is never wider than that.
+            // Widths are fitted after load. A saved drag must not survive a
+            // refresh. Desktop outline starts at a quarter of the viewport;
+            // on a phone that quarter is too narrow, so the outline starts
+            // at the compact cap and the script fits the headings into it.
             var quarter = Math.floor(window.innerWidth * 0.25);
-            if (quarter > 0) html.style.setProperty('--dg-panel-right-width', quarter + 'px');
+            var compactCap = Math.min(640, Math.max(180, Math.floor(window.innerWidth * 0.85)));
+            if (!leftCollapsed && quarter > 0) {
+                  html.style.setProperty('--dg-panel-left-width', quarter + 'px');
+            }
+            var rightStart = compact ? compactCap : quarter;
+            if (rightStart > 0) html.style.setProperty('--dg-panel-right-width', rightStart + 'px');
             html.classList.toggle('left-panel-collapsed', leftCollapsed);
             html.classList.toggle('right-panel-collapsed', rightCollapsed);
             html.classList.toggle('compact-panels', compact);

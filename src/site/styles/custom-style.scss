@@ -143,10 +143,21 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         .foldername {
             flex: 1 1 auto;
             min-width: 0;
-            overflow: visible;
+            overflow: hidden;
             white-space: nowrap;
-            text-overflow: clip;
+            text-overflow: ellipsis;
         }
+
+        > svg,
+        > i {
+            width: 16px;
+            height: 16px;
+            flex: 0 0 16px;
+        }
+    }
+
+    .deadline-folder .foldername {
+        margin-left: calc(16px + 0.2em);
     }
 
     // Root notes keep the same inset as every other tile (no chevron gap).
@@ -169,6 +180,7 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         text-align: left;
         background: transparent;
         box-shadow: none;
+        color: inherit;
     }
 
     // Cap-height to baseline, then the row centers that box. The gap from the
@@ -187,10 +199,13 @@ html.dg-math-pending g[data-mml-node="mtext"] {
     .filename,
     .foldername,
     .tile-label {
-        // The row clips a name that does not fit. The label itself must stay
-        // overflow-visible so a mark above "й" is not cut by the cap-height box.
-        overflow: visible;
-        text-overflow: clip;
+        // Ellipsis when the 25% cap cuts a name. A little padding keeps the
+        // breve on "й" inside the clip box.
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        padding-top: 0.35em;
+        margin-top: -0.35em;
     }
 
     .filename {
@@ -260,11 +275,16 @@ html.dg-math-pending g[data-mml-node="mtext"] {
         padding-bottom: 0;
     }
 
-    // One indent per nesting level, for files and folders alike.
+    // Files sit under the parent folder's name (past the chevron). Nested
+    // folders stay a step to the left of that.
     .filelist {
         border-left: none;
         margin-left: 0;
-        padding-left: 16px;
+        padding-left: 6px;
+    }
+
+    .filelist:has(> a.notelink) {
+        padding-left: calc(16px + 0.2em);
     }
 
     // No Digital Garden / site-name heading in the filetree.
@@ -801,24 +821,11 @@ ul.deadline-type-menu a.is-pointed,
     background-image: none !important;
 }
 
-.deadline-table-scroll tbody tr.deadline-past > th:not(.deadline-week),
-.deadline-table-scroll tbody tr.deadline-past > td,
-.markdown-rendered .deadline-table-scroll tbody tr.deadline-past > th:not(.deadline-week),
-.markdown-rendered .deadline-table-scroll tbody tr.deadline-past > td,
-.markdown-rendered .deadline-table-scroll tbody tr.deadline-past > th:not(.deadline-week):nth-child(2n + 2),
-.markdown-rendered .deadline-table-scroll tbody tr.deadline-past > td:nth-child(2n + 2) {
-    background-color: color-mix(in srgb, var(--background-primary, #272e3f) 84%, black) !important;
-    background-image: none !important;
-}
-
-.deadline-table-scroll tbody tr.deadline-past.deadline-weekend > th:not(.deadline-week),
-.deadline-table-scroll tbody tr.deadline-past.deadline-weekend > td,
-.markdown-rendered .deadline-table-scroll tbody tr.deadline-past.deadline-weekend > th:not(.deadline-week),
-.markdown-rendered .deadline-table-scroll tbody tr.deadline-past.deadline-weekend > td,
-.markdown-rendered .deadline-table-scroll tbody tr.deadline-past.deadline-weekend > th:not(.deadline-week):nth-child(2n + 2),
-.markdown-rendered .deadline-table-scroll tbody tr.deadline-past.deadline-weekend > td:nth-child(2n + 2) {
-    background-color: color-mix(in srgb, color-mix(in srgb, var(--text-accent, #f6cd74) 14%, var(--background-primary, #272e3f)) 84%, black) !important;
-    background-image: none !important;
+.deadline-table-scroll tbody tr[data-deadline-today] > th,
+.deadline-table-scroll tbody tr[data-deadline-today] > td,
+.markdown-rendered .deadline-table-scroll tbody tr[data-deadline-today] > th,
+.markdown-rendered .deadline-table-scroll tbody tr[data-deadline-today] > td {
+    box-shadow: inset 0 3px 0 #f0d24a;
 }
 
 a.external-link,

@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { ROOT_FOLDER } = require("./deadlinesUtils");
+const { activeDeadlinesFolder } = require("./deadlinesUtils");
 
 const LECTURE_FOLDER = "Лекции";
 const LECTURE_URL_ROOT = "lectures";
@@ -250,8 +250,13 @@ function computeFileTree(data) {
   });
   const navigationOrder = data.navigationOrder || null;
   const fileTree = sortTree(tree, navigationOrder, "/");
-  // Deadline files are opened from the table, not from the sidebar.
-  delete fileTree[ROOT_FOLDER];
+  const deadlines = activeDeadlinesFolder(data);
+  if (deadlines && fileTree[deadlines] && fileTree[deadlines].isFolder) {
+    Object.defineProperty(fileTree[deadlines], "deadlineTable", {
+      value: true,
+      enumerable: false,
+    });
+  }
   return fileTree;
 }
 

@@ -1,18 +1,10 @@
 {%- set candidatesJson = userComputed.controlDeadlineCandidatesJson if userComputed else "[]" -%}
 {%- if candidatesJson and candidatesJson != "[]" -%}
-<noscript><style>[data-dg-deadlines]{visibility:visible !important}</style></noscript>
-<div class="deadlines-block" id="dg-deadlines" data-dg-deadlines style="visibility:hidden">
-  <button type="button" class="deadline-table-open"><span class="tile-label">Дедлайны</span></button>
-</div>
 <script>
 (function () {
   {{ userComputed.deadlinesClientSource | safe }}
-  var block = document.getElementById("dg-deadlines");
-  if (!block) {
-    var script = document.currentScript;
-    block = script && script.previousElementSibling;
-  }
-  if (!block || typeof dgDeadlinesApi === "undefined") return;
+  if (typeof dgDeadlinesApi === "undefined") return;
+  var deadlinesFolderName = {{ userComputed.deadlinesFolder | jsonify | safe }};
 
   function subjectLink(subject) {
     var link = document.createElement("a");
@@ -421,7 +413,7 @@
     var panel = document.createElement("div");
     panel.className = "deadline-table-panel";
     panel.setAttribute("role", "dialog");
-    panel.setAttribute("aria-label", "Дедлайны");
+    panel.setAttribute("aria-label", deadlinesFolderName || "Дедлайны");
     var scroll = document.createElement("div");
     scroll.className = "deadline-table-scroll";
     var tableEl = null;
@@ -549,11 +541,7 @@
       event.preventDefault();
       openTable(table);
     });
-    var opener = block.querySelector(".deadline-table-open");
-    if (opener) opener.addEventListener("click", function () { openTable(table); });
   } catch (err) {}
-  block.style.visibility = "visible";
-  if (window.dgSyncFiletreeDeadlines) window.dgSyncFiletreeDeadlines();
 })();
 </script>
 {%- endif -%}
