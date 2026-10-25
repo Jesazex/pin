@@ -9,8 +9,8 @@
             var compact = window.matchMedia('(max-width: 1000px)').matches;
             var leftRaw = sessionStorage.getItem(LEFT_KEY);
             var rightRaw = sessionStorage.getItem(RIGHT_KEY);
-            // Left starts open. Right stays closed until the reader opens it.
-            var leftCollapsed = leftRaw === '1';
+            // Both panels stay closed until the reader opens them.
+            var leftCollapsed = leftRaw !== '0';
             var rightCollapsed = rightRaw !== '0';
             // Mobile: only one panel open at a time.
             if (compact && !leftCollapsed && !rightCollapsed) {
