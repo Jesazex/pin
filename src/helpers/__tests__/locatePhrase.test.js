@@ -185,6 +185,37 @@ describe("keyboard layout search", () => {
     ]);
   });
 
+  it("treats е and ё as the same letter, including the other layout", () => {
+    expect(sandbox.normalizePhrase("Ёлка")).toBe("елка");
+    expect(sandbox.phraseInText("ёлка у дома", "елка")).toBe(true);
+    expect(sandbox.phraseInText("елка у дома", "ёлка")).toBe(true);
+    expect(sandbox.swapLayout("`krf")).toBe("ёлка");
+    expect(sandbox.swapLayout("tkrf")).toBe("елка");
+    expect(sandbox.phraseVariants("`krf")).toEqual(["`krf", "елка"]);
+    sandbox.window = {
+      docs: [
+        {
+          title: "Теорема Кёнига",
+          url: "/yo",
+          content: "теорема Кёнига",
+          sections: [{ id: "kenig", text: "Теорема Кёнига", body: "её формулировка" }],
+          tags: [],
+        },
+        {
+          title: "Другое",
+          url: "/other",
+          content: "ничего похожего",
+          sections: [{ id: "x", text: "Другое", body: "ничего похожего" }],
+          tags: [],
+        },
+      ],
+    };
+    expect(sandbox.offlineSearch("Кенига").map((doc) => doc.url)).toEqual(["/yo"]);
+    expect(sandbox.offlineSearch("Кёнига")[0].matchId).toBe("kenig");
+    expect(sandbox.offlineSearch("R`ybuf").map((doc) => doc.url)).toEqual(["/yo"]);
+    expect(sandbox.offlineSearch("ее").map((doc) => doc.url)).toEqual(["/yo"]);
+  });
+
   it("keeps a file that matches both layouts once, in the typed group", () => {
     sandbox.window = {
       docs: [
@@ -201,6 +232,61 @@ describe("keyboard layout search", () => {
   });
 });
 
+describe("search result in the open file", () => {
+  it("closes the search window and moves to the heading", () => {
+    const removed = [];
+    sandbox.URL = URL;
+    sandbox.document = {
+      getElementById() {
+        return { classList: { remove: (name) => removed.push(name) } };
+      },
+    };
+    sandbox.clearSearchQuery = () => {};
+    sandbox.history = {
+      pushState(_state, _title, hash) {
+        sandbox.window.location.hash = hash;
+      },
+    };
+    const scrolled = [];
+    sandbox.headingFromHash = (hash) => ({ id: hash });
+    sandbox.scrollHeadingSmooth = (el) => scrolled.push(el);
+    sandbox.window = {
+      location: {
+        href: "http://localhost/lekczii/fizika/fizika-1104/",
+        origin: "http://localhost",
+        pathname: "/lekczii/fizika/fizika-1104/",
+        search: "",
+        hash: "",
+      },
+    };
+    sandbox.openSearchTarget("/lekczii/fizika/fizika-1104/#teorema-kyoniga");
+    expect(removed).toContain("active");
+    expect(sandbox.window.location.hash).toBe("#teorema-kyoniga");
+    expect(scrolled).toEqual([{ id: "#teorema-kyoniga" }]);
+    expect(sandbox.window.location.href).toBe("http://localhost/lekczii/fizika/fizika-1104/");
+  });
+
+  it("follows a result that points at another file", () => {
+    let closed = false;
+    sandbox.URL = URL;
+    sandbox.closeSearchPanel = () => {
+      closed = true;
+    };
+    sandbox.window = {
+      location: {
+        href: "http://localhost/lekczii/fizika/fizika-1104/",
+        origin: "http://localhost",
+        pathname: "/lekczii/fizika/fizika-1104/",
+        search: "",
+        hash: "",
+      },
+    };
+    sandbox.openSearchTarget("/lekczii/fizika/fizika-1105/#teorema-kyoniga");
+    expect(closed).toBe(false);
+    expect(sandbox.window.location.href).toBe("/lekczii/fizika/fizika-1105/#teorema-kyoniga");
+  });
+});
+
 describe("search highlight", () => {
   const highlightStart = template.indexOf("function highlightPattern");
   const highlightEnd = template.indexOf("function getContextualExcerpt");
@@ -213,6 +299,13 @@ describe("search highlight", () => {
       'О<span class="search-highlight">пр</span>еделение <span class="search-highlight">пр</span>инципа'
     );
     expect(html).not.toMatch(/search-hi</);
+  });
+
+  it("highlights е and ё as the same letter", () => {
+    const html = highlight.highlightTerms("Теорема Кёнига и Кенига", ["кенига"]);
+    expect(html).toBe(
+      'Теорема <span class="search-highlight">Кёнига</span> и <span class="search-highlight">Кенига</span>'
+    );
   });
 
   it("still highlights the swapped letters when they are real text", () => {
