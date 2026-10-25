@@ -308,7 +308,7 @@ describe("filetreeUtils", () => {
       expect(tree["beta.md"].downloadHref).toBe("");
     });
 
-    it("copies lecture markdown to the download path", () => {
+    it("copies lecture markdown without the properties block", () => {
       const dest = fs.mkdtempSync(path.join(os.tmpdir(), "lectures-"));
       copyLectureMarkdown(dest);
       const copied = path.join(dest, "lectures", "Физика", "Физика 1101.md");
@@ -320,7 +320,16 @@ describe("filetreeUtils", () => {
         "Физика",
         "Физика 1101.md"
       );
-      expect(fs.readFileSync(copied, "utf8")).toBe(fs.readFileSync(source, "utf8"));
+      const sourceText = fs.readFileSync(source, "utf8");
+      const copiedText = fs.readFileSync(copied, "utf8");
+      expect(sourceText.startsWith("---\n")).toBe(true);
+      expect(copiedText.startsWith("---")).toBe(false);
+      expect(copiedText).not.toContain("dg-publish");
+      expect(copiedText).not.toContain("dg-note-properties");
+      expect(copiedText).toBe(sourceText.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n*/, ""));
+      expect(copiedText.startsWith("Дата:")).toBe(true);
+      const withRule = path.join(dest, "lectures", "Физика", "Физика 1104.md");
+      expect(fs.readFileSync(withRule, "utf8")).toContain("\n---\n");
     });
 
     it("hides a note with hideInFiletree:true (dg-hide-in-filetree)", () => {

@@ -121,18 +121,32 @@ function lectureDownloadFromStem(stem) {
 
 // Published pages are HTML. The sidebar download links point at these copies
 // of the lecture sources, under the same /lectures/ path as downloadHref.
+// Obsidian properties sit in the opening --- block. The downloaded note is
+// the lecture text, so that block is left out. A later --- is a rule in the body.
+function stripNoteProperties(raw) {
+  return String(raw || "").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n*/, "");
+}
+
+function copyLectureTree(src, dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const from = path.join(src, entry.name);
+    const to = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyLectureTree(from, to);
+    } else if (entry.isFile() && entry.name.endsWith(".md")) {
+      fs.writeFileSync(to, stripNoteProperties(fs.readFileSync(from, "utf8")));
+    }
+  }
+}
+
 function copyLectureMarkdown(outputDir, sourceDir) {
   const srcRoot =
     sourceDir || path.join("src", "site", "notes", LECTURE_FOLDER);
   const destRoot = path.join(outputDir, LECTURE_URL_ROOT);
   fs.rmSync(destRoot, { recursive: true, force: true });
   if (!fs.existsSync(srcRoot)) return destRoot;
-  fs.cpSync(srcRoot, destRoot, {
-    recursive: true,
-    filter(source) {
-      return fs.statSync(source).isDirectory() || source.endsWith(".md");
-    },
-  });
+  copyLectureTree(srcRoot, destRoot);
   return destRoot;
 }
 

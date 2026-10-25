@@ -119,7 +119,10 @@
         });
         unique.sort((a, b) => b.length - a.length);
         if (!unique.length) return null;
-        const pattern = unique.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+        const pattern = unique.map((term) => term
+            .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+            .replace(/[её]/gi, "[её]")
+        ).join("|");
         return new RegExp("(" + pattern + ")", "gi");
     }
 
@@ -140,9 +143,11 @@
             return truncateText(plainText, maxLength);
         }
 
+        const foldedText = plainText.toLowerCase().replace(/ё/g, "е");
         let firstMatchIndex = plainText.length;
         terms.forEach(term => {
-            const index = plainText.toLowerCase().indexOf(term.toLowerCase());
+            const needle = String(term || "").toLowerCase().replace(/ё/g, "е");
+            const index = needle ? foldedText.indexOf(needle) : -1;
             if (index !== -1 && index < firstMatchIndex) {
                 firstMatchIndex = index;
             }
@@ -240,7 +245,7 @@
                     const active = document.querySelector('.searchresult.active');
                     if (active) {
                         const url = active.dataset.url;
-                        if (url) window.location.href = url;
+                        if (url) openSearchTarget(url);
                     }
                 }
             }
@@ -341,8 +346,7 @@
             resultsHTML += `
                 <div class="searchresult${index === 0 ? ' active' : ''}"
                      data-index="${index}"
-                     data-url="${targetUrl}"
-                     onclick="window.location.href='${targetUrl}'">
+                     data-url="${targetUrl}">
                     <span class="result-title">${highlightedTitle}</span>
                     ${tagsHTML}
                     <div class="result-excerpt">${highlightedExcerpt}</div>
@@ -503,6 +507,7 @@
     function normalizePhrase(str) {
         return String(str || "")
             .toLowerCase()
+            .replace(/ё/g, "е")
             .replace(/\s+/g, " ")
             .trim();
     }
@@ -543,7 +548,45 @@
     }
 
     function phraseInText(text, phrase) {
-        return normalizePhrase(text).includes(phrase);
+        const needle = normalizePhrase(phrase);
+        if (!needle) return false;
+        return normalizePhrase(text).includes(needle);
+    }
+
+    function closeSearchPanel() {
+        const searchContainer = document.getElementById("globalsearch");
+        if (searchContainer) searchContainer.classList.remove("active");
+        clearSearchQuery();
+    }
+
+    function sameNoteTarget(targetUrl) {
+        let url;
+        try {
+            url = new URL(targetUrl, window.location.href);
+        } catch (e) {
+            return null;
+        }
+        if (url.origin !== window.location.origin) return null;
+        if (notePath(url.pathname) !== notePath(window.location.pathname)) return null;
+        if (url.search !== window.location.search) return null;
+        return url;
+    }
+
+    // A result in the open file only changes the hash, so the overlay would
+    // stay up. Close it, then move to the heading.
+    function openSearchTarget(targetUrl) {
+        const same = sameNoteTarget(targetUrl);
+        if (!same) {
+            window.location.href = targetUrl;
+            return;
+        }
+        closeSearchPanel();
+        const hash = same.hash;
+        if (!hash || hash === "#") return;
+        const el = typeof headingFromHash === "function" ? headingFromHash(hash) : null;
+        if (window.location.hash !== hash) history.pushState(null, "", hash);
+        if (el && typeof scrollHeadingSmooth === "function") scrollHeadingSmooth(el);
+        else if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     function notePath(url) {
@@ -671,5 +714,21 @@
         if (href && href !== 'javascript:void(0);') return;
         window.toggleTagSearch(tagEl);
     });
+
+    const searchRoot = document.getElementById("globalsearch");
+    if (searchRoot) {
+        searchRoot.addEventListener("click", function (event) {
+            const result = event.target.closest && event.target.closest(".searchresult");
+            if (result && result.dataset.url) {
+                event.preventDefault();
+                event.stopPropagation();
+                openSearchTarget(result.dataset.url);
+                return;
+            }
+            const link = event.target.closest && event.target.closest("a[href]");
+            if (!link || event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            if (sameNoteTarget(link.href)) closeSearchPanel();
+        }, true);
+    }
 </script>
 {% endif %}
