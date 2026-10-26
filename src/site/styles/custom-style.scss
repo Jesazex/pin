@@ -446,15 +446,6 @@ body:has(#dg-deadline-table) {
 }
 
 @media (max-width: 1000px) {
-    .deadline-table-overlay {
-        padding: 8px;
-    }
-
-    .deadline-table-panel {
-        max-width: calc(100vw - 16px);
-        max-height: calc(100vh - 16px);
-    }
-
     .deadline-table-scroll {
         touch-action: pan-x pan-y;
     }
@@ -828,8 +819,11 @@ ul.deadline-type-menu a.is-pointed,
     > input[type="checkbox"],
     > p > input[type="checkbox"] {
         flex: 0 0 auto;
-        // Sit on the middle of the first text line (16px box, 24px line).
-        margin: 4px 0 0 !important;
+        font-size: inherit;
+        line-height: inherit;
+        // Center the box on the first line. 1lh follows this element's
+        // inherited line-height, which is the same one the label uses.
+        margin: calc((1lh - var(--checkbox-size)) / 2) 0 0 !important;
         position: relative;
         top: 0;
     }
