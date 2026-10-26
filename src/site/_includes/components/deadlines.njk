@@ -322,19 +322,54 @@
     }
   }
 
+  function deadlineViewport() {
+    var compact = window.matchMedia("(max-width: 1000px)").matches;
+    var pad = compact ? 16 : 48;
+    return {
+      compact: compact,
+      maxW: Math.max(160, window.innerWidth - pad),
+      maxH: compact
+        ? Math.max(120, window.innerHeight - pad)
+        : Math.max(120, Math.min(window.innerHeight * 0.85, window.innerHeight - 48)),
+    };
+  }
+
+  // Phone: open already scaled so every column is on screen. A later pinch
+  // starts from that scale instead of the full-size table.
+  function fitDeadlineColumns(tableEl) {
+    if (!tableEl || tableEl.tagName !== "TABLE") return;
+    var box = deadlineViewport();
+    if (!box.compact) {
+      tableEl.style.zoom = "";
+      delete tableEl.dataset.columnFit;
+      return;
+    }
+    tableEl.style.zoom = "1";
+    var natural = tableEl.getBoundingClientRect().width;
+    var scale = natural > box.maxW && natural > 0 ? box.maxW / natural : 1;
+    var guard = 0;
+    while (guard < 3) {
+      tableEl.style.zoom = String(scale);
+      var used = tableEl.getBoundingClientRect().width;
+      if (used <= box.maxW + 0.5 || scale <= 0.05) break;
+      scale *= (box.maxW - 1) / used;
+      guard += 1;
+    }
+    tableEl.dataset.columnFit = String(scale);
+  }
+
   function fitDeadlineWindow(scroll, tableEl) {
     if (!scroll || !tableEl) return;
-    var maxW = Math.max(160, window.innerWidth - 48);
-    var maxH = Math.max(120, Math.min(window.innerHeight * 0.85, window.innerHeight - 48));
+    var box = deadlineViewport();
     var rect = tableEl.getBoundingClientRect();
     var w = Math.ceil(rect.width);
     var h = Math.ceil(rect.height);
-    scroll.style.width = Math.min(w, maxW) + "px";
-    scroll.style.height = Math.min(h, maxH) + "px";
+    scroll.style.width = Math.min(w, box.maxW) + "px";
+    scroll.style.height = Math.min(h, box.maxH) + "px";
     var barX = scroll.offsetWidth - scroll.clientWidth;
-    if (barX > 0 && w + barX <= maxW) scroll.style.width = (w + barX) + "px";
+    if (barX > 0 && w + barX <= box.maxW) scroll.style.width = (w + barX) + "px";
     var barY = scroll.offsetHeight - scroll.clientHeight;
-    if (barY > 0 && h + barY <= maxH) scroll.style.height = (h + barY) + "px";
+    if (barY > 0 && h + barY <= box.maxH) scroll.style.height = (h + barY) + "px";
   }
 
   function bindDeadlinePinch(scroll, onScale) {
@@ -351,8 +386,15 @@
       return Math.sqrt(dx * dx + dy * dy) || 1;
     }
 
+    function floorScale() {
+      var fitted = parseFloat(table.dataset.columnFit);
+      if (fitted > 0) return Math.min(0.5, fitted);
+      return 0.5;
+    }
+
     function applyScale(next) {
-      if (next < 0.5) next = 0.5;
+      var floor = floorScale();
+      if (next < floor) next = floor;
       if (next > 3) next = 3;
       scale = next;
       table.style.zoom = String(scale);
@@ -517,6 +559,11 @@
     document.body.appendChild(overlay);
     clipWeekLabels(tableEl);
     function refit() {
+      fitDeadlineColumns(tableEl);
+      fitDeadlineWindow(scroll, tableEl);
+      placeHeaderShield();
+    }
+    function refitFrame() {
       fitDeadlineWindow(scroll, tableEl);
       placeHeaderShield();
     }
@@ -528,7 +575,7 @@
     overlay._deadlineUnbind = function () {
       window.removeEventListener("resize", refit);
     };
-    bindDeadlinePinch(scroll, refit);
+    bindDeadlinePinch(scroll, refitFrame);
     document.addEventListener("keydown", onTableKey);
   }
 
