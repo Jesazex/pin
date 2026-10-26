@@ -322,53 +322,51 @@
     }
   }
 
-  function deadlineFrame() {
-    return {
-      maxW: Math.max(160, window.innerWidth - 48),
-      maxH: Math.max(120, Math.min(window.innerHeight * 0.85, window.innerHeight - 48)),
-    };
-  }
-
-  // Phone only: the opening zoom, so every column is inside the frame.
-  // The pinch gesture still scales from whatever zoom is on the table.
-  function fitDeadlineColumns(tableEl) {
+  // Opening size only. Pinch still zooms the table itself, from 1.
+  function fitOpeningColumns(tableEl) {
     if (!tableEl || tableEl.tagName !== "TABLE") return;
-    if (!window.matchMedia("(max-width: 1000px)").matches) {
-      tableEl.style.zoom = "";
-      delete tableEl.dataset.columnFit;
-      return;
+    if (!window.matchMedia("(max-width: 1000px)").matches) return;
+    var wrap = tableEl.parentElement;
+    if (!wrap || !wrap.classList.contains("deadline-table-fit")) {
+      wrap = document.createElement("div");
+      wrap.className = "deadline-table-fit";
+      tableEl.parentElement.insertBefore(wrap, tableEl);
+      wrap.appendChild(tableEl);
     }
-    var maxW = deadlineFrame().maxW;
-    tableEl.style.zoom = "1";
+    var maxW = Math.max(160, window.innerWidth - 48);
+    wrap.style.zoom = "1";
     var natural = tableEl.getBoundingClientRect().width;
-    var scale = natural > maxW && natural > 0 ? (maxW - 1) / natural : 1;
-    tableEl.style.zoom = String(scale);
-    var used = tableEl.getBoundingClientRect().width;
-    if (used > maxW && used > 0) {
+    var scale = natural > maxW && natural > 0 ? maxW / natural : 1;
+    var guard = 0;
+    while (guard < 3) {
+      wrap.style.zoom = String(scale);
+      var used = wrap.getBoundingClientRect().width;
+      if (used <= maxW + 0.5 || scale <= 0.05) break;
       scale *= (maxW - 1) / used;
-      tableEl.style.zoom = String(scale);
+      guard += 1;
     }
-    tableEl.dataset.columnFit = String(scale);
   }
 
   function fitDeadlineWindow(scroll, tableEl) {
     if (!scroll || !tableEl) return;
-    var box = deadlineFrame();
+    var maxW = Math.max(160, window.innerWidth - 48);
+    var maxH = Math.max(120, Math.min(window.innerHeight * 0.85, window.innerHeight - 48));
     var rect = tableEl.getBoundingClientRect();
     var w = Math.ceil(rect.width);
     var h = Math.ceil(rect.height);
-    scroll.style.width = Math.min(w, box.maxW) + "px";
-    scroll.style.height = Math.min(h, box.maxH) + "px";
+    scroll.style.width = Math.min(w, maxW) + "px";
+    scroll.style.height = Math.min(h, maxH) + "px";
     var barX = scroll.offsetWidth - scroll.clientWidth;
-    if (barX > 0 && w + barX <= box.maxW) scroll.style.width = (w + barX) + "px";
+    if (barX > 0 && w + barX <= maxW) scroll.style.width = (w + barX) + "px";
     var barY = scroll.offsetHeight - scroll.clientHeight;
-    if (barY > 0 && h + barY <= box.maxH) scroll.style.height = (h + barY) + "px";
+    if (barY > 0 && h + barY <= maxH) scroll.style.height = (h + barY) + "px";
   }
 
   function bindDeadlinePinch(scroll, onScale) {
     var query = window.matchMedia("(max-width: 1000px)");
     var table = scroll.querySelector("table");
     if (!table) return;
+    var scale = 1;
     var startDist = 0;
     var startScale = 1;
 
@@ -378,25 +376,18 @@
       return Math.sqrt(dx * dx + dy * dy) || 1;
     }
 
-    function readScale() {
-      var zoom = parseFloat(table.style.zoom);
-      return zoom > 0 ? zoom : 1;
-    }
-
     function applyScale(next) {
-      var floor = 0.5;
-      var fitted = parseFloat(table.dataset.columnFit);
-      if (fitted > 0 && fitted < floor) floor = fitted;
-      if (next < floor) next = floor;
+      if (next < 0.5) next = 0.5;
       if (next > 3) next = 3;
-      table.style.zoom = String(next);
+      scale = next;
+      table.style.zoom = String(scale);
       if (onScale) onScale();
     }
 
     scroll.addEventListener("touchstart", function (event) {
       if (!query.matches || event.touches.length !== 2) return;
       startDist = distance(event.touches);
-      startScale = readScale();
+      startScale = scale;
     }, { passive: true });
 
     scroll.addEventListener("touchmove", function (event) {
@@ -471,7 +462,8 @@
         shield = document.createElement("div");
         shield.className = "deadline-header-shield";
         shield.setAttribute("aria-hidden", "true");
-        scroll.insertBefore(shield, tableEl);
+        var anchor = tableEl.parentElement === scroll ? tableEl : tableEl.parentElement;
+        scroll.insertBefore(shield, anchor && anchor.parentElement === scroll ? anchor : scroll.firstChild);
       }
       var height = Math.ceil(tableEl.tHead.getBoundingClientRect().height);
       if (height < 1) return;
@@ -550,33 +542,29 @@
     });
     document.body.appendChild(overlay);
     clipWeekLabels(tableEl);
-    function refitFrame() {
+    function refit() {
+      if (tableEl) {
+        var pinch = parseFloat(tableEl.style.zoom);
+        var atOpening = !(pinch > 0) || Math.abs(pinch - 1) < 0.001;
+        var wrap = tableEl.parentElement;
+        if (atOpening && wrap && wrap.classList.contains("deadline-table-fit") && !window.matchMedia("(max-width: 1000px)").matches) {
+          wrap.style.zoom = "";
+        }
+        if (atOpening && window.matchMedia("(max-width: 1000px)").matches) {
+          fitOpeningColumns(tableEl);
+          fitDeadlineWindow(scroll, tableEl);
+          var overflow = scroll.scrollWidth - scroll.clientWidth;
+          var fitted = wrap && wrap.classList.contains("deadline-table-fit") ? wrap : tableEl.parentElement;
+          var zoom = parseFloat(fitted && fitted.style.zoom);
+          var width = tableEl.getBoundingClientRect().width;
+          var room = scroll.clientWidth - 1;
+          if (overflow > 0 && zoom > 0 && width > room) {
+            fitted.style.zoom = String(zoom * room / width);
+          }
+        }
+      }
       fitDeadlineWindow(scroll, tableEl);
       placeHeaderShield();
-    }
-    function refit() {
-      var compact = window.matchMedia("(max-width: 1000px)").matches;
-      var fitted = tableEl ? parseFloat(tableEl.dataset.columnFit) : 0;
-      var current = tableEl ? parseFloat(tableEl.style.zoom) : 0;
-      var stillOpening = !(fitted > 0) || !(current > 0) || Math.abs(current - fitted) < 0.015;
-      if (!tableEl || !compact || stillOpening) fitDeadlineColumns(tableEl);
-      refitFrame();
-      if (!tableEl || !scroll || !compact || !stillOpening) return;
-      var guard = 0;
-      while (guard < 4) {
-        var overflow = scroll.scrollWidth - scroll.clientWidth;
-        var stick = tableEl.getBoundingClientRect().right - scroll.getBoundingClientRect().right;
-        if (overflow <= 0 && stick <= 0.5) break;
-        var zoom = parseFloat(tableEl.style.zoom);
-        var width = tableEl.getBoundingClientRect().width;
-        var room = scroll.clientWidth - 1;
-        if (!(zoom > 0) || !(width > room)) break;
-        zoom *= room / width;
-        tableEl.style.zoom = String(zoom);
-        tableEl.dataset.columnFit = String(zoom);
-        refitFrame();
-        guard += 1;
-      }
     }
     refit();
     pinTableAtToday(scroll, tableEl);
@@ -586,7 +574,7 @@
     overlay._deadlineUnbind = function () {
       window.removeEventListener("resize", refit);
     };
-    bindDeadlinePinch(scroll, refitFrame);
+    bindDeadlinePinch(scroll, refit);
     document.addEventListener("keydown", onTableKey);
   }
 
