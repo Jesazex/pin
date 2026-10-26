@@ -322,29 +322,29 @@
     }
   }
 
-  // Opening size only. Pinch still zooms the table itself, from 1.
-  function fitOpeningColumns(tableEl) {
+  // Phone only: the zoom the table opens at, so every column is on screen.
+  // Pinch then scales that same zoom toward the fingers.
+  function fitOpeningZoom(tableEl) {
     if (!tableEl || tableEl.tagName !== "TABLE") return;
-    if (!window.matchMedia("(max-width: 1000px)").matches) return;
-    var wrap = tableEl.parentElement;
-    if (!wrap || !wrap.classList.contains("deadline-table-fit")) {
-      wrap = document.createElement("div");
-      wrap.className = "deadline-table-fit";
-      tableEl.parentElement.insertBefore(wrap, tableEl);
-      wrap.appendChild(tableEl);
+    if (!window.matchMedia("(max-width: 1000px)").matches) {
+      tableEl.style.zoom = "";
+      delete tableEl.dataset.columnFit;
+      return;
     }
     var maxW = Math.max(160, window.innerWidth - 48);
-    wrap.style.zoom = "1";
+    tableEl.style.zoom = "1";
     var natural = tableEl.getBoundingClientRect().width;
-    var scale = natural > maxW && natural > 0 ? maxW / natural : 1;
+    var room = Math.max(1, maxW - 2);
+    var scale = natural > room && natural > 0 ? room / natural : 1;
     var guard = 0;
-    while (guard < 3) {
-      wrap.style.zoom = String(scale);
-      var used = wrap.getBoundingClientRect().width;
-      if (used <= maxW + 0.5 || scale <= 0.05) break;
-      scale *= (maxW - 1) / used;
+    while (guard < 4) {
+      tableEl.style.zoom = String(scale);
+      var used = tableEl.getBoundingClientRect().width;
+      if (used <= room || scale <= 0.05) break;
+      scale *= room / used;
       guard += 1;
     }
+    tableEl.dataset.columnFit = tableEl.style.zoom;
   }
 
   function fitDeadlineWindow(scroll, tableEl) {
@@ -366,9 +366,10 @@
     var query = window.matchMedia("(max-width: 1000px)");
     var table = scroll.querySelector("table");
     if (!table) return;
-    var scale = 1;
+    var opening = parseFloat(table.style.zoom);
+    var scale = opening > 0 ? opening : 1;
     var startDist = 0;
-    var startScale = 1;
+    var startScale = scale;
 
     function distance(touches) {
       var dx = touches[0].clientX - touches[1].clientX;
@@ -376,16 +377,51 @@
       return Math.sqrt(dx * dx + dy * dy) || 1;
     }
 
-    function applyScale(next) {
-      if (next < 0.5) next = 0.5;
+    function centroid(touches) {
+      return {
+        x: (touches[0].clientX + touches[1].clientX) / 2,
+        y: (touches[0].clientY + touches[1].clientY) / 2,
+      };
+    }
+
+    // CSS zoom grows from the table's top-left. After the zoom, slide the
+    // scroll by however far the cell under the fingers moved, so that cell
+    // stays under them.
+    function applyScale(next, focal) {
+      var floor = 0.5;
+      var fitted = parseFloat(table.dataset.columnFit);
+      if (fitted > 0 && fitted < floor) floor = fitted;
+      if (next < floor) next = floor;
       if (next > 3) next = 3;
+      var box = scroll.getBoundingClientRect();
+      if (!focal) focal = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      var hit = document.elementFromPoint(focal.x, focal.y);
+      var anchor = hit && hit.closest ? hit.closest("th, td") : null;
+      if (!anchor || !table.contains(anchor)) anchor = null;
+      var rel = null;
+      if (anchor) {
+        var ar = anchor.getBoundingClientRect();
+        if (ar.width > 0 && ar.height > 0) {
+          rel = {
+            node: anchor,
+            x: (focal.x - ar.left) / ar.width,
+            y: (focal.y - ar.top) / ar.height,
+          };
+        }
+      }
       scale = next;
       table.style.zoom = String(scale);
       if (onScale) onScale();
+      if (!rel) return;
+      var moved = rel.node.getBoundingClientRect();
+      scroll.scrollLeft += moved.left + rel.x * moved.width - focal.x;
+      scroll.scrollTop += moved.top + rel.y * moved.height - focal.y;
     }
 
     scroll.addEventListener("touchstart", function (event) {
       if (!query.matches || event.touches.length !== 2) return;
+      var zoom = parseFloat(table.style.zoom);
+      if (zoom > 0) scale = zoom;
       startDist = distance(event.touches);
       startScale = scale;
     }, { passive: true });
@@ -393,7 +429,7 @@
     scroll.addEventListener("touchmove", function (event) {
       if (!query.matches || event.touches.length !== 2 || !startDist) return;
       event.preventDefault();
-      applyScale(startScale * (distance(event.touches) / startDist));
+      applyScale(startScale * (distance(event.touches) / startDist), centroid(event.touches));
     }, { passive: false });
 
     function endPinch(event) {
@@ -543,36 +579,27 @@
     document.body.appendChild(overlay);
     clipWeekLabels(tableEl);
     function refit() {
-      if (tableEl) {
-        var pinch = parseFloat(tableEl.style.zoom);
-        var atOpening = !(pinch > 0) || Math.abs(pinch - 1) < 0.001;
-        var wrap = tableEl.parentElement;
-        if (atOpening && wrap && wrap.classList.contains("deadline-table-fit") && !window.matchMedia("(max-width: 1000px)").matches) {
-          wrap.style.zoom = "";
-        }
-        if (atOpening && window.matchMedia("(max-width: 1000px)").matches) {
-          fitOpeningColumns(tableEl);
-          fitDeadlineWindow(scroll, tableEl);
-          var overflow = scroll.scrollWidth - scroll.clientWidth;
-          var fitted = wrap && wrap.classList.contains("deadline-table-fit") ? wrap : tableEl.parentElement;
-          var zoom = parseFloat(fitted && fitted.style.zoom);
-          var width = tableEl.getBoundingClientRect().width;
-          var room = scroll.clientWidth - 1;
-          if (overflow > 0 && zoom > 0 && width > room) {
-            fitted.style.zoom = String(zoom * room / width);
-          }
-        }
-      }
       fitDeadlineWindow(scroll, tableEl);
       placeHeaderShield();
     }
+    function refitResize() {
+      if (tableEl) {
+        var compact = window.matchMedia("(max-width: 1000px)").matches;
+        var current = parseFloat(tableEl.style.zoom);
+        var fitted = parseFloat(tableEl.dataset.columnFit);
+        var stillOpening = !(fitted > 0) || !(current > 0) || Math.abs(current - fitted) < 0.015;
+        if (!compact || stillOpening) fitOpeningZoom(tableEl);
+      }
+      refit();
+    }
+    fitOpeningZoom(tableEl);
     refit();
     pinTableAtToday(scroll, tableEl);
     placeHeaderShield();
     scroll.addEventListener("scroll", placeHeaderShield, { passive: true });
-    window.addEventListener("resize", refit);
+    window.addEventListener("resize", refitResize);
     overlay._deadlineUnbind = function () {
-      window.removeEventListener("resize", refit);
+      window.removeEventListener("resize", refitResize);
     };
     bindDeadlinePinch(scroll, refit);
     document.addEventListener("keydown", onTableKey);
