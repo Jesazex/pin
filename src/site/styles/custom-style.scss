@@ -804,13 +804,13 @@ ul.deadline-type-menu a.is-pointed,
 .markdown-preview-view li.task-list-item,
 .markdown-rendered li.task-list-item {
     display: flex;
-    align-items: flex-start;
+    align-items: baseline;
     gap: 0.45em;
     cursor: pointer;
 
     > p {
         display: flex;
-        align-items: flex-start;
+        align-items: baseline;
         gap: 0.45em;
         width: 100%;
         margin: 0;
@@ -820,12 +820,12 @@ ul.deadline-type-menu a.is-pointed,
     > p > input[type="checkbox"] {
         flex: 0 0 auto;
         font-size: inherit;
-        line-height: inherit;
-        // Center the box on the first line. 1lh follows this element's
-        // inherited line-height, which is the same one the label uses.
-        margin: calc((1lh - var(--checkbox-size)) / 2) 0 0 !important;
+        margin: 0 !important;
         position: relative;
-        top: 0;
+        // The box baseline is its bottom edge, so an unshifted box center sits
+        // above the middle of the x-height. Move it down onto that middle:
+        // the body of "р", not the tail.
+        top: calc((var(--checkbox-size) - 1ex) / 2);
     }
 
     > label,
