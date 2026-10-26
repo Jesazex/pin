@@ -229,6 +229,24 @@ module.exports = function(eleventyConfig) {
       ulClass: "task-list",
       liClass: "task-list-item",
     })
+    .use(function (md) {
+      // The task plugin slices off "[ ]" but leaves the separating space,
+      // so the first line of the label sits further right than the wrap.
+      md.core.ruler.after("github-task-lists", "trim-task-label", function (state) {
+        state.tokens.forEach((token) => {
+          if (token.type !== "inline" || !token.children) return;
+          const box = token.children.findIndex((child) => child.type === "checkbox_input");
+          if (box < 0) return;
+          for (let i = box + 1; i < token.children.length; i++) {
+            const child = token.children[i];
+            if (child.type === "text" && child.content) {
+              child.content = child.content.replace(/^[ \u00A0]+/, "");
+              break;
+            }
+          }
+        });
+      });
+    })
     .use(namedHeadingsFilter)
     .use(function(md) {
       const defaultImageRule =
