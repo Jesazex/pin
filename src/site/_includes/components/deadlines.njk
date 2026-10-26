@@ -322,45 +322,38 @@
     }
   }
 
-  function deadlineViewport() {
-    var compact = window.matchMedia("(max-width: 1000px)").matches;
-    var pad = compact ? 16 : 48;
+  function deadlineFrame() {
     return {
-      compact: compact,
-      maxW: Math.max(160, window.innerWidth - pad),
-      maxH: compact
-        ? Math.max(120, window.innerHeight - pad)
-        : Math.max(120, Math.min(window.innerHeight * 0.85, window.innerHeight - 48)),
+      maxW: Math.max(160, window.innerWidth - 48),
+      maxH: Math.max(120, Math.min(window.innerHeight * 0.85, window.innerHeight - 48)),
     };
   }
 
-  // Phone: open already scaled so every column is on screen. A later pinch
-  // starts from that scale instead of the full-size table.
+  // Phone only: the opening zoom, so every column is inside the frame.
+  // The pinch gesture still scales from whatever zoom is on the table.
   function fitDeadlineColumns(tableEl) {
     if (!tableEl || tableEl.tagName !== "TABLE") return;
-    var box = deadlineViewport();
-    if (!box.compact) {
+    if (!window.matchMedia("(max-width: 1000px)").matches) {
       tableEl.style.zoom = "";
       delete tableEl.dataset.columnFit;
       return;
     }
+    var maxW = deadlineFrame().maxW;
     tableEl.style.zoom = "1";
     var natural = tableEl.getBoundingClientRect().width;
-    var scale = natural > box.maxW && natural > 0 ? box.maxW / natural : 1;
-    var guard = 0;
-    while (guard < 3) {
+    var scale = natural > maxW && natural > 0 ? (maxW - 1) / natural : 1;
+    tableEl.style.zoom = String(scale);
+    var used = tableEl.getBoundingClientRect().width;
+    if (used > maxW && used > 0) {
+      scale *= (maxW - 1) / used;
       tableEl.style.zoom = String(scale);
-      var used = tableEl.getBoundingClientRect().width;
-      if (used <= box.maxW + 0.5 || scale <= 0.05) break;
-      scale *= (box.maxW - 1) / used;
-      guard += 1;
     }
     tableEl.dataset.columnFit = String(scale);
   }
 
   function fitDeadlineWindow(scroll, tableEl) {
     if (!scroll || !tableEl) return;
-    var box = deadlineViewport();
+    var box = deadlineFrame();
     var rect = tableEl.getBoundingClientRect();
     var w = Math.ceil(rect.width);
     var h = Math.ceil(rect.height);
@@ -376,7 +369,6 @@
     var query = window.matchMedia("(max-width: 1000px)");
     var table = scroll.querySelector("table");
     if (!table) return;
-    var scale = 1;
     var startDist = 0;
     var startScale = 1;
 
@@ -386,25 +378,25 @@
       return Math.sqrt(dx * dx + dy * dy) || 1;
     }
 
-    function floorScale() {
-      var fitted = parseFloat(table.dataset.columnFit);
-      if (fitted > 0) return Math.min(0.5, fitted);
-      return 0.5;
+    function readScale() {
+      var zoom = parseFloat(table.style.zoom);
+      return zoom > 0 ? zoom : 1;
     }
 
     function applyScale(next) {
-      var floor = floorScale();
+      var floor = 0.5;
+      var fitted = parseFloat(table.dataset.columnFit);
+      if (fitted > 0 && fitted < floor) floor = fitted;
       if (next < floor) next = floor;
       if (next > 3) next = 3;
-      scale = next;
-      table.style.zoom = String(scale);
+      table.style.zoom = String(next);
       if (onScale) onScale();
     }
 
     scroll.addEventListener("touchstart", function (event) {
       if (!query.matches || event.touches.length !== 2) return;
       startDist = distance(event.touches);
-      startScale = scale;
+      startScale = readScale();
     }, { passive: true });
 
     scroll.addEventListener("touchmove", function (event) {
@@ -558,14 +550,33 @@
     });
     document.body.appendChild(overlay);
     clipWeekLabels(tableEl);
-    function refit() {
-      fitDeadlineColumns(tableEl);
-      fitDeadlineWindow(scroll, tableEl);
-      placeHeaderShield();
-    }
     function refitFrame() {
       fitDeadlineWindow(scroll, tableEl);
       placeHeaderShield();
+    }
+    function refit() {
+      var compact = window.matchMedia("(max-width: 1000px)").matches;
+      var fitted = tableEl ? parseFloat(tableEl.dataset.columnFit) : 0;
+      var current = tableEl ? parseFloat(tableEl.style.zoom) : 0;
+      var stillOpening = !(fitted > 0) || !(current > 0) || Math.abs(current - fitted) < 0.015;
+      if (!tableEl || !compact || stillOpening) fitDeadlineColumns(tableEl);
+      refitFrame();
+      if (!tableEl || !scroll || !compact || !stillOpening) return;
+      var guard = 0;
+      while (guard < 4) {
+        var overflow = scroll.scrollWidth - scroll.clientWidth;
+        var stick = tableEl.getBoundingClientRect().right - scroll.getBoundingClientRect().right;
+        if (overflow <= 0 && stick <= 0.5) break;
+        var zoom = parseFloat(tableEl.style.zoom);
+        var width = tableEl.getBoundingClientRect().width;
+        var room = scroll.clientWidth - 1;
+        if (!(zoom > 0) || !(width > room)) break;
+        zoom *= room / width;
+        tableEl.style.zoom = String(zoom);
+        tableEl.dataset.columnFit = String(zoom);
+        refitFrame();
+        guard += 1;
+      }
     }
     refit();
     pinTableAtToday(scroll, tableEl);
