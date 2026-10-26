@@ -822,10 +822,10 @@ ul.deadline-type-menu a.is-pointed,
         font-size: inherit;
         margin: 0 !important;
         position: relative;
-        // The box baseline is its bottom edge, so an unshifted box center sits
-        // above the middle of the x-height. Move it down onto that middle:
-        // the body of "р", not the tail.
-        top: calc((var(--checkbox-size) - 1ex) / 2);
+        // The box baseline is its bottom edge. Shift it so the box center
+        // sits on the cap-height center: the middle of "8" or of "р" without
+        // the descender.
+        top: calc((var(--checkbox-size) - 1cap) / 2);
     }
 
     > label,
