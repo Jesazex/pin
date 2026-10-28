@@ -894,6 +894,16 @@ main.content > hr.dg-deadline-divider {
     height: 0;
 }
 
+// The sheet close control otherwise sits on the first outline row
+// (between 1001px and 1400px) and covers that heading. The corner
+// toggle is the control for this panel.
+.page-panel-header,
+.page-panel-backdrop,
+.page-panel-toggle,
+.page-panel-fab {
+    display: none !important;
+}
+
 // Right headings list flush to the right edge of the viewport.
 .sidebar {
     top: 0 !important;
@@ -902,7 +912,7 @@ main.content > hr.dg-deadline-divider {
     right: 0 !important;
     width: var(--dg-panel-right);
     max-width: var(--dg-panel-right);
-    padding: 56px 0 10px !important;
+    padding: 72px 0 10px !important;
     box-sizing: border-box;
     z-index: 30;
 }
@@ -935,6 +945,9 @@ main.content > hr.dg-deadline-divider {
 
     .toc-title {
         white-space: nowrap;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .toc-container {
@@ -1288,7 +1301,8 @@ html.panel-resizing .sidebar#page-panel {
     }
 
     html.right-panel-collapsed.right-panel-peek .sidebar#page-panel {
-        padding: 56px 0 10px !important;
+        padding: 72px 0 10px !important;
+        overflow: hidden !important;
     }
 
     // Peek must not narrow the article.
@@ -1321,12 +1335,12 @@ html.panel-resizing .sidebar#page-panel {
         visibility: visible;
         pointer-events: auto;
         transform: none;
-        overflow: auto !important;
+        overflow: hidden !important;
         z-index: 30;
         box-shadow: none;
-        // The corner toggle sits at top 12px and is 36px tall. This keeps the
-        // title and the headings under it clear of that button.
-        padding: 56px 0 10px !important;
+        // The corner toggle occupies y 12–48. Keep the title and the headings
+        // below it, and let the outline scroll inside the panel.
+        padding: 72px 0 10px !important;
     }
 
     html:not(.left-panel-collapsed) .content:not(.canvas-page) {
@@ -1428,7 +1442,7 @@ html.panel-resizing .sidebar#page-panel {
         height: 100% !important;
         max-height: none !important;
         margin: 0 !important;
-        padding: 56px 0 10px !important;
+        padding: 72px 0 10px !important;
         border-radius: 0 !important;
         border-top: none !important;
         transform: none !important;
