@@ -23,6 +23,8 @@ const {
   dayPageKey,
   taskStorageKey,
   normalizeTaskLabel,
+  displayFolderName,
+  dayGroupTitle,
 } = require("./deadlinesCore");
 
 function noteData(item) {
@@ -359,8 +361,10 @@ function controlNoteIdentity(data) {
   const parts = String(stem).split("/").filter(Boolean);
   const rootAt = folder ? parts.indexOf(folder) : -1;
   if (!folder || rootAt < 0 || parts.length < rootAt + 3) return null;
+  const typeName = parts[rootAt + 1];
   return {
-    typeName: parts[rootAt + 1],
+    typeName,
+    typeLabel: displayFolderName(typeName),
     subjectName: parts[parts.length - 1],
   };
 }
@@ -399,7 +403,7 @@ function getControlTaskCatalog(data) {
         };
       });
       byDay.get(key).push({
-        title: `${subjectName} (${typeName})`,
+        title: dayGroupTitle(subjectName, typeName),
         subjectName,
         typeName,
         blocks,
@@ -412,7 +416,7 @@ function getControlTaskCatalog(data) {
     groups.sort(
       (a, b) =>
         a.subjectName.localeCompare(b.subjectName, "ru") ||
-        a.typeName.localeCompare(b.typeName, "ru")
+        displayFolderName(a.typeName).localeCompare(displayFolderName(b.typeName), "ru")
     );
     catalog[key] = {
       groups: groups.map((group) => ({ title: group.title, blocks: group.blocks })),

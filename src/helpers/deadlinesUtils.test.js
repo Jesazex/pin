@@ -534,7 +534,10 @@ describe("deadlinesUtils", () => {
     });
     expect(
       controlNoteIdentity({ ...home, page: { filePathStem: "/notes/Дедлайны/ДЗ/Физика" } })
-    ).toEqual({ typeName: "ДЗ", subjectName: "Физика" });
+    ).toEqual({ typeName: "ДЗ", subjectName: "Физика", typeLabel: "ДЗ" });
+    expect(
+      controlNoteIdentity({ ...home, page: { filePathStem: "/notes/Дедлайны/{КР/Физика" } })
+    ).toEqual({ typeName: "{КР", subjectName: "Физика", typeLabel: "КР" });
     expect(
       controlNoteIdentity({ ...home, page: { filePathStem: "/notes/Лекции/Физика/Физика 1101" } })
     ).toBeNull();
@@ -583,6 +586,38 @@ describe("deadlinesUtils", () => {
     ]);
     expect(catalog["3-1"]).toBeUndefined();
     expect(parseControlSections("## Без даты\n- [ ] 1\n")).toEqual([]);
+  });
+
+  it("omits a braced type folder from the day heading and shows the name without the brace", () => {
+    const catalog = getControlTaskCatalog(withDeadlineHome({
+      collections: {
+        note: [
+          {
+            filePathStem: "/notes/Дедлайны/{КР/Физика",
+            template: { inputContent: "## На 9 октября\n- КР №1\n" },
+          },
+          {
+            filePathStem: "/notes/Дедлайны/ДЗ/Физика",
+            template: { inputContent: "## На 9 октября\n- задача\n" },
+          },
+        ],
+      },
+    }));
+    expect(catalog["9-10"].groups.map((group) => group.title)).toEqual(["Физика (ДЗ)", "Физика"]);
+    const today = new Date(2026, 9, 8);
+    const lines = pickControlDeadlines(
+      [
+        { typeName: "{КР", subjectName: "Физика", day: 9, month: 9, displayDate: "9 октября", href: "/kr" },
+        { typeName: "ДЗ", subjectName: "Матан", day: 10, month: 9, displayDate: "10 октября", href: "/dz" },
+      ],
+      today
+    );
+    expect(lines.find((line) => line.typeName === "{КР").label).toBe("Ближайшая КР:");
+    const table = buildDeadlineTable(
+      [{ typeName: "{КР", subjectName: "Физика", day: 9, month: 9, displayDate: "9 октября", href: "/kr" }],
+      today
+    );
+    expect(table.columns).toEqual(["{КР"]);
   });
 });
 
