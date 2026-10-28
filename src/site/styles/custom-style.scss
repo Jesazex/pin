@@ -902,7 +902,7 @@ main.content > hr.dg-deadline-divider {
     right: 0 !important;
     width: var(--dg-panel-right);
     max-width: var(--dg-panel-right);
-    padding: 10px 0 !important;
+    padding: 56px 0 10px !important;
     box-sizing: border-box;
     z-index: 30;
 }
@@ -1067,7 +1067,7 @@ button.panel-edge-toggle:hover,
 button.panel-edge-toggle:focus,
 button.panel-edge-toggle:focus-visible,
 button.panel-edge-toggle:active {
-    --panel-toggle-icon: var(--text-muted);
+    --panel-toggle-icon: var(--text-muted, currentColor);
     --panel-toggle-fill: color-mix(in srgb, var(--background-primary, rgb(32, 31, 31)) 42%, black);
     position: fixed;
     top: 12px;
@@ -1108,8 +1108,11 @@ button.panel-edge-toggle .panel-icon,
 button.panel-edge-toggle .svg-icon {
     width: 16px;
     height: 16px;
-    color: var(--panel-toggle-icon) !important;
-    stroke: var(--panel-toggle-icon) !important;
+    color: var(--panel-toggle-icon, currentColor) !important;
+    stroke: var(--panel-toggle-icon, currentColor) !important;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
     fill: none !important;
     opacity: 0.7 !important;
     transition: none !important;
@@ -1284,6 +1287,10 @@ html.panel-resizing .sidebar#page-panel {
         box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
     }
 
+    html.right-panel-collapsed.right-panel-peek .sidebar#page-panel {
+        padding: 56px 0 10px !important;
+    }
+
     // Peek must not narrow the article.
     html.left-panel-collapsed .content:not(.canvas-page) {
         margin-left: 48px !important;
@@ -1317,7 +1324,9 @@ html.panel-resizing .sidebar#page-panel {
         overflow: auto !important;
         z-index: 30;
         box-shadow: none;
-        padding: 10px 0 !important;
+        // The corner toggle sits at top 12px and is 36px tall. This keeps the
+        // title and the headings under it clear of that button.
+        padding: 56px 0 10px !important;
     }
 
     html:not(.left-panel-collapsed) .content:not(.canvas-page) {
@@ -1340,11 +1349,13 @@ html.panel-resizing .sidebar#page-panel {
 
 }
 
-// Compact (phone): keep width-collapse hide used by overlay drawers.
+// Compact (phone): drawers overlay the page. Open and close by fading at the
+// final width. Animating width makes the file list slide out from the edge
+// while the outline fades in place.
 @media (max-width: 1000px) {
     .filetree-wrapper,
     .sidebar#page-panel {
-        transition: width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease, opacity 0.15s ease, padding 0.2s ease;
+        transition: opacity 0.15s ease, visibility 0s linear 0s;
     }
 
     html.left-panel-collapsed .filetree-wrapper {
@@ -1355,6 +1366,8 @@ html.panel-resizing .sidebar#page-panel {
         visibility: hidden;
         pointer-events: none;
         overflow: hidden !important;
+        // Hold the open width until the fade finishes, then collapse it.
+        transition: opacity 0.15s ease, visibility 0s linear 0.15s, width 0s linear 0.15s, min-width 0s linear 0.15s, max-width 0s linear 0.15s;
     }
 
     html.right-panel-collapsed .sidebar#page-panel {
@@ -1366,6 +1379,7 @@ html.panel-resizing .sidebar#page-panel {
         visibility: hidden;
         pointer-events: none;
         overflow: hidden !important;
+        transition: opacity 0.15s ease, visibility 0s linear 0.15s, width 0s linear 0.15s, min-width 0s linear 0.15s, max-width 0s linear 0.15s, padding 0s linear 0.15s;
     }
 
     html.right-panel-collapsed .sidebar#page-panel .page-panel-header {
@@ -1414,7 +1428,7 @@ html.panel-resizing .sidebar#page-panel {
         height: 100% !important;
         max-height: none !important;
         margin: 0 !important;
-        padding: 10px 0 !important;
+        padding: 56px 0 10px !important;
         border-radius: 0 !important;
         border-top: none !important;
         transform: none !important;
