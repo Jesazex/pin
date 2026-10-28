@@ -4,7 +4,7 @@ permalink: "notes/{{ page.fileSlug | slugify }}/"
 {% set fileLabel = title if title else page.fileSlug %}
 {% if userComputed and userComputed.controlNote %}
   {% set shownName = title if title else userComputed.controlNote.subjectName %}
-  {% set fileLabel = userComputed.controlNote.typeName ~ " " ~ shownName %}
+  {% set fileLabel = userComputed.controlNote.typeLabel ~ " " ~ shownName %}
 {% endif %}
 {% set navTitle = "Главная" if ("Добро пожаловать!" in (page.filePathStem or "")) else fileLabel %}
 <!DOCTYPE html>

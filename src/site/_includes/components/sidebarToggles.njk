@@ -174,7 +174,33 @@
                   writeCollapsed(storageKey(side), collapsed);
             }
             hoverPeek[side] = false;
+            // Phone file list is width 0 while closed, so the first open
+            // frame would use the wide fallback (about half the screen)
+            // and only then shrink to the labels. Measure while it stays
+            // hidden, then reveal at the fitted width.
+            const openingLeft = isCompact() && side === 'left' && !collapsed && !leftWidthManual;
+            const root = document.documentElement;
+            if (openingLeft) {
+                  root.classList.add('dg-left-measuring');
+                  root.style.setProperty('--dg-panel-left-width', Math.max(rightWidthCap(), 280) + 'px');
+            }
             applyState();
+            if (openingLeft) {
+                  const wrapper = panelEl('left');
+                  if (wrapper) void wrapper.offsetWidth;
+                  try {
+                        withMeasurableLabels(function () {
+                              refreshPanelFloors();
+                              fitLeftPanelToLabels();
+                        });
+                        // Apply the fitted width while the drawer is still
+                        // hidden and not animating, so the reveal does not
+                        // start from the wide probe.
+                        if (wrapper) void wrapper.offsetWidth;
+                  } finally {
+                        root.classList.remove('dg-left-measuring');
+                  }
+            }
             applyStoredWidths();
       }
 
@@ -674,8 +700,21 @@
             if (document.documentElement.classList.contains('panel-resizing')) return;
             const wrapper = panelEl('left');
             if (!wrapper) return;
-            if (wrapper.getBoundingClientRect().width < 24) {
-                  const collapsed = document.documentElement.classList.contains('left-panel-collapsed');
+            const root = document.documentElement;
+            const collapsed = root.classList.contains('left-panel-collapsed');
+            const preset = parseInt(root.style.getPropertyValue('--dg-panel-left-width'), 10);
+            const live = Math.round(wrapper.getBoundingClientRect().width);
+            // Width is still animating from the closed state. Measuring now
+            // would read a half-open drawer and then snap the size again.
+            if (!collapsed && preset > 24 && live + 8 < preset) {
+                  if (leftFitTries < 12) {
+                        leftFitTries += 1;
+                        clearTimeout(leftFitTimer);
+                        leftFitTimer = setTimeout(fitLeftPanelToLabels, 80);
+                  }
+                  return;
+            }
+            if (live < 24) {
                   if (!collapsed && leftFitTries < 10) {
                         leftFitTries += 1;
                         clearTimeout(leftFitTimer);

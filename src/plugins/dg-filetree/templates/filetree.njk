@@ -20,7 +20,9 @@
                     <div class="foldername-wrapper align-icon" role="button" tabindex="0" @click.stop="toggleFolder()" @keydown.enter.prevent="toggleFolder()" @keydown.space.prevent="toggleFolder()">
                     <i x-show="isOpen" style="display: none;"  data-lucide="chevron-down"></i>
                     <i x-show="!isOpen"  data-lucide="chevron-right"></i>
-                    <span class="foldername">{{fileOrFolderName}}</span>
+                    {% set hideBrace = userComputed and userComputed.deadlinesFolder and currentPath.indexOf(userComputed.deadlinesFolder + "/") == 0 and fileOrFolderName.indexOf("{") == 0 %}
+                    {% set folderLabel = fileOrFolderName.slice(1) if hideBrace else fileOrFolderName %}
+                    <span class="foldername">{{folderLabel}}</span>
                     </div>
                     {% for fileOrFolderName, child in fileOrFolder %}
                         {{menuItem(fileOrFolderName, child, step+1, (currentPath+"/"+fileOrFolderName))}}

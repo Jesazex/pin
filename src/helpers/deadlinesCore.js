@@ -183,6 +183,26 @@ var dgDeadlinesApi = (function () {
     return String(a.subjectName).localeCompare(String(b.subjectName), "ru");
   }
 
+  /**
+   * A folder directly inside the deadlines folder may start with "{".
+   * That mark is not part of the name readers see.
+   */
+  function displayFolderName(name) {
+    var text = String(name == null ? "" : name);
+    return text.charAt(0) === "{" ? text.slice(1) : text;
+  }
+
+  /**
+   * Day-page heading: «Физика (ДЗ)». A type folder whose name starts with
+   * "{" is omitted from the parentheses; the subject stands alone.
+   */
+  function dayGroupTitle(subjectName, typeName) {
+    var subject = String(subjectName == null ? "" : subjectName);
+    var type = String(typeName == null ? "" : typeName);
+    if (type.charAt(0) === "{") return subject;
+    return subject + " (" + type + ")";
+  }
+
   function nearestAdjective(typeName, count) {
     if (count > 1) return "Ближайшие";
     if (FEMININE_TYPES[typeName]) return "Ближайшая";
@@ -248,11 +268,12 @@ var dgDeadlinesApi = (function () {
       var upcoming = upcomingItems(items, today0);
       if (upcoming.days === null || !upcoming.subjects.length) return;
       var detail = detailFor(upcoming.subjects, upcoming.days);
-      var adj = nearestAdjective(typeName, upcoming.subjects.length);
+      var shownType = displayFolderName(typeName);
+      var adj = nearestAdjective(shownType, upcoming.subjects.length);
       var line = {
         typeName: typeName,
         adjective: adj,
-        label: adj + " " + typeName + ":",
+        label: adj + " " + shownType + ":",
         subjects: detail.subjects,
         whenText: detail.whenText,
         linkText: detail.linkText,
@@ -266,7 +287,7 @@ var dgDeadlinesApi = (function () {
     });
 
     lines.sort(function (a, b) {
-      return a.days - b.days || String(a.typeName).localeCompare(b.typeName, "ru");
+      return a.days - b.days || displayFolderName(a.typeName).localeCompare(displayFolderName(b.typeName), "ru");
     });
     return lines;
   }
@@ -361,7 +382,7 @@ var dgDeadlinesApi = (function () {
       var tb = nearestTime[b] == null ? Infinity : nearestTime[b];
       var byDate = ta - tb;
       if (byDate) return byDate;
-      return String(a).localeCompare(String(b), "ru");
+      return displayFolderName(a).localeCompare(displayFolderName(b), "ru");
     });
     var rows = [];
     if (latestTime === null) return { columns: columns, rows: rows };
@@ -597,9 +618,18 @@ var dgDeadlinesApi = (function () {
    * in local storage. The day page uses the same key, so a tick survives
    * navigation between the file and the date.
    */
+  function detachTaskLabels(root) {
+    if (!root || !root.querySelectorAll) return;
+    var labels = root.querySelectorAll("li.task-list-item label[for]");
+    for (var i = 0; i < labels.length; i++) {
+      if (labels[i].removeAttribute) labels[i].removeAttribute("for");
+    }
+  }
+
   function bindControlTaskChecks(root, identity) {
     if (!root || !root.children || !identity || !identity.typeName || !identity.subjectName) return;
     installTaskWatch();
+    detachTaskLabels(root);
     var counts = {};
     var current = null;
     var children = [];
@@ -628,7 +658,7 @@ var dgDeadlinesApi = (function () {
     }
   }
 
-  function appendDayBlocks(section, blocks, seq) {
+  function appendDayBlocks(section, blocks) {
     var list = null;
     var listKind = "";
     for (var i = 0; i < blocks.length; i++) {
@@ -646,12 +676,9 @@ var dgDeadlinesApi = (function () {
         var box = document.createElement("input");
         box.type = "checkbox";
         box.className = "task-list-item-checkbox";
-        var boxId = "dg-day-task-" + seq.n;
-        seq.n += 1;
-        box.id = boxId;
         li.appendChild(box);
-        var caption = document.createElement("label");
-        caption.setAttribute("for", boxId);
+        var caption = document.createElement("span");
+        caption.className = "task-list-item-label";
         caption.innerHTML = block.html || "";
         li.appendChild(caption);
         list.appendChild(li);
@@ -688,7 +715,6 @@ var dgDeadlinesApi = (function () {
       root.appendChild(empty);
       return;
     }
-    var seq = { n: 0 };
     for (var g = 0; g < groups.length; g++) {
       var group = groups[g];
       var section = document.createElement("section");
@@ -697,7 +723,7 @@ var dgDeadlinesApi = (function () {
       heading.id = "dg-day-" + g;
       heading.textContent = group.title || "";
       section.appendChild(heading);
-      appendDayBlocks(section, group.blocks || [], seq);
+      appendDayBlocks(section, group.blocks || []);
       root.appendChild(section);
     }
   }
@@ -712,6 +738,8 @@ var dgDeadlinesApi = (function () {
     relativeParen: relativeParen,
     controlDateLabel: controlDateLabel,
     applyControlHeadings: applyControlHeadings,
+    displayFolderName: displayFolderName,
+    dayGroupTitle: dayGroupTitle,
     nearestAdjective: nearestAdjective,
     academicWeekNumber: academicWeekNumber,
     buildDeadlineTable: buildDeadlineTable,

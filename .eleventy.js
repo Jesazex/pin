@@ -237,6 +237,14 @@ module.exports = function(eleventyConfig) {
           if (token.type !== "inline" || !token.children) return;
           const box = token.children.findIndex((child) => child.type === "checkbox_input");
           if (box < 0) return;
+          // The task plugin wraps the words in <label for="...">, so a click
+          // on the text toggles the box. Keep the label for layout and drop
+          // the association; only the checkbox itself changes state.
+          token.children.forEach((child) => {
+            if (child.type !== "label_open" || !child.attrs) return;
+            const index = child.attrIndex("for");
+            if (index >= 0) child.attrs.splice(index, 1);
+          });
           for (let i = box + 1; i < token.children.length; i++) {
             const child = token.children[i];
             if (child.type === "text" && child.content) {

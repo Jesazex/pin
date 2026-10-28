@@ -806,7 +806,7 @@ ul.deadline-type-menu a.is-pointed,
     display: flex;
     align-items: baseline;
     gap: 0.45em;
-    cursor: pointer;
+    cursor: default;
 
     > p {
         display: flex;
@@ -814,6 +814,7 @@ ul.deadline-type-menu a.is-pointed,
         gap: 0.45em;
         width: 100%;
         margin: 0;
+        cursor: default;
     }
 
     > input[type="checkbox"],
@@ -822,6 +823,7 @@ ul.deadline-type-menu a.is-pointed,
         font-size: inherit;
         margin: 0 !important;
         position: relative;
+        cursor: pointer;
         // The box baseline is its bottom edge. Shift it so the box center
         // sits on the cap-height center: the middle of "8" or of "р" without
         // the descender.
@@ -829,11 +831,13 @@ ul.deadline-type-menu a.is-pointed,
     }
 
     > label,
-    > p > label {
+    > p > label,
+    > .task-list-item-label,
+    > p > .task-list-item-label {
         flex: 1 1 auto;
         min-width: 0;
         margin: 0;
-        cursor: pointer;
+        cursor: default;
     }
 }
 
@@ -1495,6 +1499,20 @@ html.panel-resizing .sidebar#page-panel {
         pointer-events: none !important;
         overflow: hidden !important;
         box-shadow: none !important;
+    }
+
+    // Measure the label width before the drawer is shown. It must stay
+    // invisible and skip the width animation, or the open flashes at the
+    // wide fallback and then shrinks.
+    html.dg-left-measuring .filetree-wrapper {
+        width: var(--dg-panel-left) !important;
+        min-width: var(--dg-panel-left) !important;
+        max-width: var(--dg-panel-left) !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        overflow: hidden !important;
+        transition: none !important;
     }
 
     html.right-panel-collapsed .sidebar#page-panel {

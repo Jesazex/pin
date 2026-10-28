@@ -28,7 +28,9 @@
       }
     }
     return columns.slice().sort(function (a, b) {
-      return rank[a] - rank[b] || String(a).localeCompare(String(b), "ru");
+      var left = dgDeadlinesApi.displayFolderName(a);
+      var right = dgDeadlinesApi.displayFolderName(b);
+      return rank[a] - rank[b] || String(left).localeCompare(String(right), "ru");
     });
   }
 
@@ -55,7 +57,7 @@
       var typeButton = document.createElement("button");
       typeButton.type = "button";
       typeButton.className = "deadline-type-button";
-      typeButton.textContent = columns[c];
+      typeButton.textContent = dgDeadlinesApi.displayFolderName(columns[c]);
       var typeSubjects = (controlSubjects && controlSubjects[columns[c]]) || [];
       if (typeSubjects.length) {
         typeButton.setAttribute("aria-haspopup", "menu");
