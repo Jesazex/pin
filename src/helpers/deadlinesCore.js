@@ -336,9 +336,13 @@ var dgDeadlinesApi = (function () {
     return Math.round(days / 7) + 1;
   }
 
+  // Four-week period, starting at week 1: Числитель-1, Знаменатель-1,
+  // Числитель-2, Знаменатель-2, then the same four again.
+  var WEEK_KINDS = ["Числитель-1", "Знаменатель-1", "Числитель-2", "Знаменатель-2"];
+
   function weekLabel(week) {
-    var kind = week % 2 === 0 ? "Числитель" : "Знаменатель";
-    return week + " неделя (" + kind + ")";
+    var slot = ((Number(week) - 1) % 4 + 4) % 4;
+    return week + " неделя (" + WEEK_KINDS[slot] + ")";
   }
 
   /**
@@ -742,6 +746,7 @@ var dgDeadlinesApi = (function () {
     dayGroupTitle: dayGroupTitle,
     nearestAdjective: nearestAdjective,
     academicWeekNumber: academicWeekNumber,
+    weekLabel: weekLabel,
     buildDeadlineTable: buildDeadlineTable,
     isPastControlDate: isPastControlDate,
     markPastControlSections: markPastControlSections,
