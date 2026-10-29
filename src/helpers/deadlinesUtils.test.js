@@ -13,6 +13,7 @@ import {
   controlDateLabel,
   nearestAdjective,
   academicWeekNumber,
+  weekLabel,
   isPastControlDate,
   markPastControlSections,
   buildDeadlineTable,
@@ -367,20 +368,20 @@ describe("deadlinesUtils", () => {
     expect(byLabel["30 сентября"].days).toBe(0);
     expect(byLabel["30 сентября"].href).toBe("/den/?d=30-9");
     expect(byLabel["30 сентября"].week).toBe(5);
-    expect(byLabel["30 сентября"].weekLabel).toBe("5 неделя (Знаменатель)");
+    expect(byLabel["30 сентября"].weekLabel).toBe("5 неделя (Числитель-1)");
     expect(byLabel["1 октября"].whenText).toBe("Завтра");
     expect(byLabel["1 октября"].href).toBe("/den/?d=1-10");
-    expect(byLabel["1 октября"].weekLabel).toBe("5 неделя (Знаменатель)");
+    expect(byLabel["1 октября"].weekLabel).toBe("5 неделя (Числитель-1)");
     expect(byLabel["2 октября"].whenText).toBe("Через 2 дня");
     expect(byLabel["3 октября"].weekday).toBe("Сб");
     expect(byLabel["3 октября"].weekend).toBe(true);
     expect(byLabel["4 октября"].weekday).toBe("Вс");
     expect(byLabel["4 октября"].weekend).toBe(true);
-    expect(byLabel["4 октября"].weekLabel).toBe("5 неделя (Знаменатель)");
+    expect(byLabel["4 октября"].weekLabel).toBe("5 неделя (Числитель-1)");
     expect(byLabel["5 октября"].week).toBe(6);
-    expect(byLabel["5 октября"].weekLabel).toBe("6 неделя (Числитель)");
+    expect(byLabel["5 октября"].weekLabel).toBe("6 неделя (Знаменатель-1)");
     expect(table.rows.at(-1).href).toBe("/den/?d=18-12");
-    expect(table.rows.at(-1).weekLabel).toBe("16 неделя (Числитель)");
+    expect(table.rows.at(-1).weekLabel).toBe("16 неделя (Знаменатель-2)");
     expect(byLabel["2 октября"].cells).toEqual({ ДЗ: [], БДЗ: [], ЛР: [] });
     expect(table.rows.at(-1).label).toBe("18 декабря");
     expect(table.rows.at(-1).cells["БДЗ"].map((item) => item.subjectName)).toEqual(["Физика"]);
@@ -432,6 +433,20 @@ describe("deadlinesUtils", () => {
     // 1 Sep 2025 is Monday, so the Sunday before is week 53 of the prior academic year.
     expect(academicWeekNumber(new Date(2025, 7, 31))).toBe(53);
     expect(academicWeekNumber(new Date(2025, 8, 1))).toBe(1);
+  });
+
+  it("names weeks in a four-week numerator and denominator cycle", () => {
+    expect(weekLabel(1)).toBe("1 неделя (Числитель-1)");
+    expect(weekLabel(2)).toBe("2 неделя (Знаменатель-1)");
+    expect(weekLabel(3)).toBe("3 неделя (Числитель-2)");
+    expect(weekLabel(4)).toBe("4 неделя (Знаменатель-2)");
+    expect(weekLabel(5)).toBe("5 неделя (Числитель-1)");
+    // 29 Oct 2026 is Thursday of week 9.
+    expect(academicWeekNumber(new Date(2026, 9, 29))).toBe(9);
+    expect(weekLabel(9)).toBe("9 неделя (Числитель-1)");
+    expect(weekLabel(academicWeekNumber(new Date(2026, 9, 26)))).toBe("9 неделя (Числитель-1)");
+    expect(weekLabel(academicWeekNumber(new Date(2026, 10, 1)))).toBe("9 неделя (Числитель-1)");
+    expect(weekLabel(academicWeekNumber(new Date(2026, 10, 2)))).toBe("10 неделя (Знаменатель-1)");
   });
 
   it("shows dates at most half a year ahead and drops the rest as passed", () => {
