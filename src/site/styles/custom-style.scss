@@ -23,6 +23,14 @@ body {
     --dg-filelist-margin: 4px;
     --dg-folder-margin: 2px 0;
     --dg-notelink-padding: 3px 6px 3px 8px;
+    // File title row in the outline: its line box, the gap under it, and the
+    // padding of the nested nav.toc. The panel padding shrinks by this much,
+    // so the first heading lands where the title sits now and the title
+    // itself moves up beside the corner button.
+    --dg-outline-title-line: 1.25;
+    --dg-outline-title-gap: 8px;
+    --dg-outline-title-block: calc(var(--dg-toc-title-size) * var(--dg-outline-title-line) + var(--dg-outline-title-gap) + var(--dg-toc-padding));
+    --dg-outline-pad-top: calc(48px - var(--dg-outline-title-block));
 }
 
 html,
@@ -912,7 +920,7 @@ main.content > hr.dg-deadline-divider {
     right: 0 !important;
     width: var(--dg-panel-right);
     max-width: var(--dg-panel-right);
-    padding: 48px 0 10px !important;
+    padding: var(--dg-outline-pad-top) 0 10px !important;
     box-sizing: border-box;
     z-index: 30;
 }
@@ -940,6 +948,7 @@ main.content > hr.dg-deadline-divider {
         flex-shrink: 0;
         // Keep the file title clear of the corner show/hide button.
         padding-right: 56px;
+        margin-bottom: var(--dg-outline-title-gap);
         box-sizing: border-box;
     }
 
@@ -948,6 +957,7 @@ main.content > hr.dg-deadline-divider {
         max-width: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
+        line-height: var(--dg-outline-title-line);
     }
 
     .toc-container {
@@ -1301,7 +1311,7 @@ html.panel-resizing .sidebar#page-panel {
     }
 
     html.right-panel-collapsed.right-panel-peek .sidebar#page-panel {
-        padding: 48px 0 10px !important;
+        padding: var(--dg-outline-pad-top) 0 10px !important;
         overflow: hidden !important;
     }
 
@@ -1338,9 +1348,10 @@ html.panel-resizing .sidebar#page-panel {
         overflow: hidden !important;
         z-index: 30;
         box-shadow: none;
-        // The corner toggle occupies y 12–48. Keep the title and the headings
-        // below it, and let the outline scroll inside the panel.
-        padding: 48px 0 10px !important;
+        // The corner toggle occupies y 12–48. The file title shares that row
+        // (its right padding clears the button). The first heading starts
+        // where the title used to, just under the button.
+        padding: var(--dg-outline-pad-top) 0 10px !important;
     }
 
     html:not(.left-panel-collapsed) .content:not(.canvas-page) {
@@ -1442,7 +1453,7 @@ html.panel-resizing .sidebar#page-panel {
         height: 100% !important;
         max-height: none !important;
         margin: 0 !important;
-        padding: 48px 0 10px !important;
+        padding: var(--dg-outline-pad-top) 0 10px !important;
         border-radius: 0 !important;
         border-top: none !important;
         transform: none !important;
@@ -1774,6 +1785,56 @@ h6.heading-flash {
 
 #search-preview .preview-body {
     color: var(--text-normal);
+}
+
+// The search field styles every input inside the dialog. A note preview
+// lives in that dialog, so its checkboxes were stretched into full-width
+// bars and the task text wrapped one character wide down the right edge.
+#search-preview input[type="checkbox"],
+.search-preview-panel input[type="checkbox"] {
+    width: var(--checkbox-size);
+    height: var(--checkbox-size);
+    min-width: var(--checkbox-size);
+    max-width: var(--checkbox-size);
+    flex: 0 0 var(--checkbox-size);
+    box-sizing: border-box;
+    padding: 0;
+    margin-inline-end: 0;
+    border: 1px solid var(--checkbox-border-color);
+    border-radius: var(--checkbox-radius);
+    background-color: transparent;
+    background-image: none;
+    font-size: inherit;
+    line-height: 1;
+    color: inherit;
+    transition: box-shadow 0.15s ease-in-out;
+}
+
+#search-preview input[type="checkbox"]:focus,
+.search-preview-panel input[type="checkbox"]:focus {
+    outline: 0;
+    border-color: var(--checkbox-border-color-hover);
+}
+
+#search-preview input[type="checkbox"]:checked,
+.search-preview-panel input[type="checkbox"]:checked {
+    background-color: var(--checkbox-color);
+    border-color: var(--checkbox-color);
+}
+
+#search-preview li.task-list-item > label,
+#search-preview li.task-list-item > p > label,
+#search-preview li.task-list-item > .task-list-item-label,
+#search-preview li.task-list-item > p > .task-list-item-label,
+.search-preview-panel li.task-list-item > label,
+.search-preview-panel li.task-list-item > p > label,
+.search-preview-panel li.task-list-item > .task-list-item-label,
+.search-preview-panel li.task-list-item > p > .task-list-item-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    overflow: visible;
+    writing-mode: horizontal-tb;
 }
 
 #search-preview .preview-body img,
