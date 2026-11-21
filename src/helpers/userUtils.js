@@ -17,6 +17,10 @@ const tileLabelInkSource = fs
   .readFileSync(path.join(__dirname, "tileLabelInk.js"), "utf8")
   .replace(/\nif \(typeof module === "object"[\s\S]*$/, "\n");
 
+const folderOpenSource = fs
+  .readFileSync(path.join(__dirname, "folderOpenState.js"), "utf8")
+  .replace(/\nif \(typeof module === "object"[\s\S]*$/, "\n");
+
 function jsonForInlineScript(value) {
   return JSON.stringify(value)
     .replace(/</g, "\\u003c")
@@ -43,9 +47,11 @@ function userComputed(data) {
     ),
     deadlinesClientSource,
     tileLabelInkSource,
+    folderOpenSource,
   };
 }
 
 exports.userComputed = userComputed;
 exports.deadlinesClientSource = deadlinesClientSource;
+exports.folderOpenSource = folderOpenSource;
 exports.jsonForInlineScript = jsonForInlineScript;
