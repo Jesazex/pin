@@ -1058,6 +1058,26 @@ main.content > hr.dg-deadline-divider {
     text-underline-offset: 0.15em;
 }
 
+// Note tables sit in the middle of the article, and the text in every cell
+// is centered — including columns markdown marked left or right. A table
+// wider than the column still scrolls inside its wrapper. The deadline grid
+// is outside the article and keeps its own alignment. Search preview copies
+// the note into an element that also has .content.
+.content .table-wrapper {
+    overflow-x: auto;
+}
+
+.content table {
+    margin-inline: auto;
+}
+
+.content :is(th, td) {
+    // Markdown writes text-align as an inline style, so a normal rule cannot
+    // move a :--- or ---: column. Center wins for every cell in the note.
+    text-align: center !important;
+    vertical-align: middle;
+}
+
 .content > header .header-meta {
     justify-content: center;
 }
