@@ -1,7 +1,9 @@
 <script defer src="https://unpkg.com/lucide@latest"></script>
 <script defer>
   document.addEventListener('DOMContentLoaded', () => {
+    if (!window.lucide || !lucide.icons || !lucide.createIcons) return;
     lucide.createIcons({
+      icons: lucide.icons,
       attrs: { class: ['svg-icon'] }
     });
   });

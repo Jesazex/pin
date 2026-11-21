@@ -125,10 +125,11 @@
 
       function ensureIcons() {
             if (iconsReady) return;
-            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            if (window.lucide && window.lucide.icons && typeof window.lucide.createIcons === 'function') {
                   document.querySelectorAll('.panel-edge-toggle').forEach((btn) => {
                         window.lucide.createIcons({
-                              nodes: [btn],
+                              icons: window.lucide.icons,
+                              root: btn,
                               attrs: { class: ['svg-icon'] },
                         });
                   });

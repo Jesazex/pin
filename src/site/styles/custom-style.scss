@@ -1882,6 +1882,57 @@ html.dg-panel-sizing .sidebar#page-panel {
     transition: none !important;
 }
 
+// Plain quotes follow Obsidian: a thin accent bar, block paragraphs, no
+// pull-quote mark. Callouts are divs and keep their own chrome.
+.markdown-rendered blockquote {
+    --blockquote-border-thickness: 2px;
+    --blockquote-border-color: var(--text-accent, var(--interactive-accent));
+    --blockquote-color: inherit;
+    --blockquote-font-style: normal;
+    --blockquote-background-color: transparent;
+    color: var(--blockquote-color);
+    font-style: var(--blockquote-font-style);
+    background: var(--blockquote-background-color);
+    border: none;
+    border-inline-start: var(--blockquote-border-thickness) solid var(--blockquote-border-color);
+    margin: 0;
+    padding: 0 0 0 24px;
+    quotes: none;
+}
+
+.markdown-rendered blockquote:before {
+    content: none;
+}
+
+.markdown-rendered blockquote p {
+    display: block;
+}
+
+.markdown-rendered blockquote > :first-child {
+    margin-top: 0;
+}
+
+.markdown-rendered blockquote > :last-child {
+    margin-bottom: 0;
+}
+
+// Title text uses the callout color, same as Obsidian's --callout-title-color
+// (inherit from the colored title row). The icon stays on the first line
+// when the title holds an inline formula.
+.callout-title {
+    align-items: flex-start;
+}
+
+.callout-title-inner {
+    font-weight: var(--callout-title-weight, 600);
+    color: var(--callout-title-color, inherit);
+}
+
+.callout-icon {
+    display: flex;
+    align-items: center;
+}
+
 @media (min-width: 1001px) {
     html.dg-panel-sizing .content:not(.canvas-page) {
         margin-left: 48px !important;
