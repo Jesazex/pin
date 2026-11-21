@@ -11,6 +11,7 @@ const FAVICON_SOURCE = "./src/site/favicon.png";
 const tocPlugin = require("eleventy-plugin-nesting-toc");
 const { tocMarkup } = require("./src/helpers/tocMarkup");
 const { parse } = require("node-html-parser");
+const { transformCalloutBlockquotes } = require("./src/helpers/callouts");
 const htmlMinifier = require("html-minifier-terser");
 
 // Minifying inline JS/CSS is the single most expensive part of the build, and
@@ -439,62 +440,6 @@ module.exports = function(eleventyConfig) {
       dataViewJsLink.innerHTML = innerHTML;
     }
   }
-
-  // Shared helper to transform callout blockquotes - used by both callout-block transform and canvas-markdown
-  const calloutMeta = /\[!([\w-]*)\|?(\s?.*)\](\+|\-){0,1}(\s?.*)/;
-  function transformCalloutBlockquotes(blockquotes) {
-    for (const blockquote of blockquotes) {
-      // Process nested blockquotes first
-      transformCalloutBlockquotes(blockquote.querySelectorAll("blockquote"));
-
-      let content = blockquote.innerHTML;
-
-      let titleDiv = "";
-      let calloutType = "";
-      let calloutMetaData = "";
-      let isCollapsable;
-      let isCollapsed;
-      if (!content.match(calloutMeta)) {
-        continue;
-      }
-
-      content = content.replace(
-        calloutMeta,
-        function(metaInfoMatch, callout, metaData, collapse, title) {
-          isCollapsable = Boolean(collapse);
-          isCollapsed = collapse === "-";
-          const titleText = title.replace(/(<\/{0,1}\w+>)/, "")
-            ? title
-            : `${callout.charAt(0).toUpperCase()}${callout
-              .substring(1)
-              .toLowerCase()}`;
-          const fold = isCollapsable
-            ? `<div class="callout-fold"><i icon-name="chevron-down"></i></div>`
-            : ``;
-
-          calloutType = callout;
-          calloutMetaData = metaData;
-          titleDiv = `<div class="callout-title"><div class="callout-title-inner">${titleText}</div>${fold}</div>`;
-          return "";
-        }
-      );
-
-      /* Hacky fix for callouts with only a title */
-      if (content === "\n<p>\n") {
-        content = "";
-      }
-      let contentDiv = content ? `\n<div class="callout-content">${content}</div>` : "";
-
-      blockquote.tagName = "div";
-      blockquote.classList.add("callout");
-      blockquote.classList.add(isCollapsable ? "is-collapsible" : "");
-      blockquote.classList.add(isCollapsed ? "is-collapsed" : "");
-      blockquote.setAttribute("data-callout", calloutType.toLowerCase());
-      calloutMetaData && blockquote.setAttribute("data-callout-metadata", calloutMetaData);
-      blockquote.innerHTML = `${titleDiv}${contentDiv}`;
-    }
-  }
-
 
   function transformTables(parsed) {
     for (const t of parsed.querySelectorAll(".cm-s-obsidian > table")) {

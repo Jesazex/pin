@@ -20,7 +20,9 @@
             }
         });
 
-        lucide.createIcons();
+        if (lucide.icons) {
+            lucide.createIcons({ icons: lucide.icons });
+        }
 
         // Collapse callouts
         Array.from(document.querySelectorAll(".callout.is-collapsible")).forEach((elem) => {
