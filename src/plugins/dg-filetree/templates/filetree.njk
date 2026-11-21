@@ -16,7 +16,7 @@
                     </button>
                 </div>
             {% elif fileOrFolder.isFolder%}
-                <div class="folder inner-folder" data-folder-key="{{ currentPath | escape }}" x-data="{isOpen: $persist(false).as({{currentPath | dump}}), toggleFolder() { this.isOpen = !this.isOpen; if (!this.isOpen && window.dgCollapseNestedFolders) { var folder = (this.$el && this.$el.closest) ? (this.$el.closest('.inner-folder') || this.$el) : this.$el; window.dgCollapseNestedFolders(folder); } }}">
+                <div class="folder inner-folder" data-folder-key="{{ currentPath | escape }}" x-data="{isOpen: $persist(false).as({{currentPath | dump}}), toggleFolder() { this.isOpen = !this.isOpen; var folder = (this.$el && this.$el.closest) ? (this.$el.closest('.inner-folder') || this.$el) : this.$el; if (window.dgOnFolderToggle) window.dgOnFolderToggle(folder, this.isOpen); }}">
                     <div class="foldername-wrapper align-icon" role="button" tabindex="0" @click.stop="toggleFolder()" @keydown.enter.prevent="toggleFolder()" @keydown.space.prevent="toggleFolder()">
                     <i x-show="isOpen" style="display: none;"  data-lucide="chevron-down"></i>
                     <i x-show="!isOpen"  data-lucide="chevron-right"></i>
@@ -74,20 +74,24 @@
     <script>
       // Opening a note by a link should reveal it in the side menu. Alpine
       // persist reads these keys at init, so write them before Alpine runs.
+      // A folder opened only to show the current note closes on the next
+      // page. A folder the reader opened stays open.
       (function () {
+        {{ userComputed.folderOpenSource | safe }}
         {{ userComputed.tileLabelInkSource | safe }}
         var active = document.querySelector("a.notelink.active-note");
+        var tree = document.querySelector(".filetree-scroll");
+        try {
+          dgSyncFolderOpenState(
+            localStorage,
+            dgListFolderKeys(tree),
+            dgAncestorFolderKeys(active)
+          );
+        } catch (e) {}
+        window.dgOnFolderToggle = function (folder, isOpen) {
+          dgApplyFolderToggle(localStorage, folder, isOpen, window.dgCollapseNestedFolders);
+        };
         if (active) {
-          var node = active.parentElement;
-          while (node && node !== document.body) {
-            if (node.classList && node.classList.contains("inner-folder")) {
-              var key = node.getAttribute("data-folder-key");
-              if (key) {
-                try { localStorage.setItem(key, "true"); } catch (e) {}
-              }
-            }
-            node = node.parentElement;
-          }
           document.addEventListener("alpine:initialized", function () {
             var link = document.querySelector("a.notelink.active-note");
             if (link && link.scrollIntoView) link.scrollIntoView({ block: "nearest" });
