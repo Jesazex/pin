@@ -1,0 +1,10 @@
+{
+  "id": "dg-mermaid",
+  "name": "Mermaid",
+  "version": "1.0.0",
+  "description": "Renders mermaid diagrams in notes.",
+  "author": "Digital Garden",
+  "hooks": "index.js",
+  "scripts": "scripts/mermaid.js",
+  "styles": "styles/mermaid.scss"
+}
