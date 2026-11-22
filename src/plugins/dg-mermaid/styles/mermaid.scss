@@ -1,0 +1,28 @@
+// Drawn with Mermaid's own light or dark theme. The Obsidian stylesheet
+// inverts every .mermaid svg in dark mode, which would flip a diagram that
+// is already dark, and the garden base paints the block white.
+.markdown-preview-view pre.mermaid {
+  background: var(--background-secondary, #393838);
+  color: var(--text-normal, #dcddde);
+  border-radius: var(--dg-mermaid-radius, 25px);
+  padding: var(--dg-mermaid-padding, 10px);
+  margin: 1.25em 0;
+  text-align: initial;
+  overflow-x: auto;
+}
+
+.theme-light .markdown-preview-view pre.mermaid {
+  background: #fff;
+  color: #222;
+}
+
+.markdown-preview-view pre.mermaid svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.theme-dark .mermaid > svg {
+  filter: none;
+}
