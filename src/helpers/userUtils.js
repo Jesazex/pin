@@ -7,7 +7,7 @@ const {
   getControlSubjects,
   activeDeadlinesFolder,
 } = require("./deadlinesUtils");
-const { lectureDownloadFromStem } = require("./filetreeUtils");
+const { lectureDownloadFromStem, lectureNeighbors } = require("./filetreeUtils");
 
 const deadlinesClientSource = fs
   .readFileSync(path.join(__dirname, "deadlinesCore.js"), "utf8")
@@ -45,6 +45,7 @@ function userComputed(data) {
     lectureDownload: lectureDownloadFromStem(
       (data.page && data.page.filePathStem) || ""
     ),
+    lectureNav: lectureNeighbors(data),
     deadlinesClientSource,
     tileLabelInkSource,
     folderOpenSource,

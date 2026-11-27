@@ -77,6 +77,16 @@ permalink: "notes/{{ page.fileSlug | slugify }}/"
       {% for imp in dynamics.notes.afterContent %}
         {% include imp %}
       {% endfor %}
+      {% if userComputed and userComputed.lectureNav %}
+      <nav class="lecture-nav" aria-label="Соседние лекции">
+        {% if userComputed.lectureNav.prev %}
+        <a class="lecture-nav-link lecture-nav-prev" href="{{ userComputed.lectureNav.prev.permalink }}">&lt; Предыдущая лекция</a>
+        {% endif %}
+        {% if userComputed.lectureNav.next %}
+        <a class="lecture-nav-link lecture-nav-next" href="{{ userComputed.lectureNav.next.permalink }}">Следующая лекция &gt;</a>
+        {% endif %}
+      </nav>
+      {% endif %}
     </main>
     {% if userComputed and userComputed.insideDeadlines %}
     <script>
