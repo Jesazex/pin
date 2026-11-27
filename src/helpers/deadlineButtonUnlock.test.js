@@ -5,10 +5,8 @@ import { describe, expect, it } from "vitest";
 import { fileURLToPath } from "node:url";
 import {
   DG_DEADLINES_BUTTON_KEY,
-  DG_DEADLINES_UNLOCK_CLICKS,
-  DG_DEADLINES_UNLOCK_MS,
+  dgDeadlineQueryUnlocks,
   dgDeadlinesButtonUnlocked,
-  dgNoteDeadlineUnlockClick,
   dgRememberDeadlinesButton,
 } from "./deadlineButtonUnlock.js";
 
@@ -24,16 +22,8 @@ function memoryStorage(initial) {
   };
 }
 
-function clickAt(times, stamps) {
-  let unlocked = false;
-  stamps.forEach((stamp) => {
-    unlocked = dgNoteDeadlineUnlockClick(times, stamp);
-  });
-  return unlocked;
-}
-
 describe("deadlines button unlock", () => {
-  it("stays locked until the corner gesture is remembered", () => {
+  it("stays locked until the search is remembered", () => {
     const storage = memoryStorage();
     expect(dgDeadlinesButtonUnlocked(storage)).toBe(false);
     expect(dgDeadlinesButtonUnlocked(memoryStorage({ [DG_DEADLINES_BUTTON_KEY]: "0" }))).toBe(
@@ -59,28 +49,20 @@ describe("deadlines button unlock", () => {
     expect(() => dgRememberDeadlinesButton(null)).not.toThrow();
   });
 
-  it("unlocks on the fifth click inside three seconds", () => {
-    const times = [];
-    expect(DG_DEADLINES_UNLOCK_CLICKS).toBe(5);
-    expect(DG_DEADLINES_UNLOCK_MS).toBe(3000);
-    expect(clickAt(times, [0, 400, 800, 1200])).toBe(false);
-    expect(dgNoteDeadlineUnlockClick(times, 1600)).toBe(true);
+  it("matches the folder name in any case", () => {
+    expect(dgDeadlineQueryUnlocks("Дедлайны", "Дедлайны")).toBe(true);
+    expect(dgDeadlineQueryUnlocks("дедлайны", "Дедлайны")).toBe(true);
+    expect(dgDeadlineQueryUnlocks("ДЕДЛАЙНЫ", "Дедлайны")).toBe(true);
+    expect(dgDeadlineQueryUnlocks("  дедлайны  ", "Дедлайны")).toBe(true);
   });
 
-  it("counts a span of exactly three seconds", () => {
-    const times = [];
-    expect(clickAt(times, [0, 750, 1500, 2250])).toBe(false);
-    expect(dgNoteDeadlineUnlockClick(times, 3000)).toBe(true);
-  });
-
-  it("drops clicks that fall outside the three second window", () => {
-    const times = [];
-    expect(clickAt(times, [0, 1000, 2000, 3000, 4000])).toBe(false);
-    expect(times).toEqual([1000, 2000, 3000, 4000]);
-    expect(dgNoteDeadlineUnlockClick(times, 7001)).toBe(false);
-    expect(times).toEqual([7001]);
-    expect(clickAt(times, [7100, 7200, 7300])).toBe(false);
-    expect(dgNoteDeadlineUnlockClick(times, 7400)).toBe(true);
+  it("ignores a different query and an unnamed folder", () => {
+    expect(dgDeadlineQueryUnlocks("дедлайн", "Дедлайны")).toBe(false);
+    expect(dgDeadlineQueryUnlocks("мои дедлайны", "Дедлайны")).toBe(false);
+    expect(dgDeadlineQueryUnlocks("", "Дедлайны")).toBe(false);
+    expect(dgDeadlineQueryUnlocks("Дедлайны", "")).toBe(false);
+    expect(dgDeadlineQueryUnlocks("Дедлайны", null)).toBe(false);
+    expect(dgDeadlineQueryUnlocks(null, "Дедлайны")).toBe(false);
   });
 
   it("runs the inlined browser bundle without Node globals", () => {
@@ -93,13 +75,13 @@ describe("deadlines button unlock", () => {
     const sandbox = {};
     vm.runInNewContext(
       clientSource +
-        "\nthis.api = { dgNoteDeadlineUnlockClick: dgNoteDeadlineUnlockClick, dgRememberDeadlinesButton: dgRememberDeadlinesButton, dgDeadlinesButtonUnlocked: dgDeadlinesButtonUnlocked };",
+        "\nthis.api = { dgDeadlineQueryUnlocks: dgDeadlineQueryUnlocks, dgRememberDeadlinesButton: dgRememberDeadlinesButton, dgDeadlinesButtonUnlocked: dgDeadlinesButtonUnlocked };",
       sandbox
     );
     expect(sandbox.module).toBeUndefined();
     const storage = memoryStorage();
-    const times = [];
-    expect(sandbox.api.dgNoteDeadlineUnlockClick(times, 10)).toBe(false);
+    expect(sandbox.api.dgDeadlineQueryUnlocks("дедлайны", "Дедлайны")).toBe(true);
+    expect(sandbox.api.dgDeadlinesButtonUnlocked(storage)).toBe(false);
     sandbox.api.dgRememberDeadlinesButton(storage);
     expect(sandbox.api.dgDeadlinesButtonUnlocked(storage)).toBe(true);
   });

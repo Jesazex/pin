@@ -242,6 +242,18 @@
                 }
                 if (e.key === 'Enter') {
                     e.preventDefault();
+                    const typed = (document.getElementById('term') || {}).value || '';
+                    if (
+                        typeof dgDeadlineQueryUnlocks === 'function' &&
+                        typeof dgDeadlinesButtonUnlocked === 'function' &&
+                        !dgDeadlinesButtonUnlocked(localStorage) &&
+                        dgDeadlineQueryUnlocks(typed, window.dgDeadlinesFolderName)
+                    ) {
+                        dgRememberDeadlinesButton(localStorage);
+                        if (typeof window.dgRevealDeadlinesButton === 'function') window.dgRevealDeadlinesButton();
+                        closeSearchPanel();
+                        return;
+                    }
                     const active = document.querySelector('.searchresult.active');
                     if (active) {
                         const url = active.dataset.url;

@@ -1,6 +1,7 @@
 {#- Apply pinned panel state on <html> before first paint to avoid open→close flash. -#}
 <script>
 {{ userComputed.deadlineButtonSource | safe }}
+window.dgDeadlinesFolderName = {{ userComputed.deadlinesFolder | jsonify | safe }};
 (function () {
       var LEFT_KEY = 'dg-left-panel-collapsed';
       var RIGHT_KEY = 'dg-right-panel-collapsed';
