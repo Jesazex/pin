@@ -68,7 +68,6 @@
                {%- endfor -%}
          </div>
       </nav>
-      <div class="dg-deadline-unlock-spot" aria-hidden="true"></div>
       </div>
     </div>
     {% include "components/deadlines.njk" %}
@@ -156,37 +155,20 @@
       })();
     </script>
     <script>
-      // The deadlines tile stays hidden until five clicks land in the open
-      // menu's bottom-left corner within three seconds. localStorage keeps
-      // that choice, the same way task checkboxes do.
+      // The deadlines tile stays hidden until its folder name is entered in
+      // search. localStorage keeps that choice, the same way task checkboxes do.
       (function () {
-        var spot = document.querySelector(".dg-deadline-unlock-spot");
         var folder = document.querySelector(".filetree-scroll .deadline-folder");
-        if (!spot || !folder || typeof dgNoteDeadlineUnlockClick !== "function") {
-          if (spot && spot.parentNode) spot.parentNode.removeChild(spot);
-          return;
-        }
         function reveal() {
           document.documentElement.classList.add("dg-deadlines-unlocked");
-          folder.classList.add("dg-deadlines-shown");
+          if (folder) folder.classList.add("dg-deadlines-shown");
         }
+        window.dgRevealDeadlinesButton = reveal;
         try {
-          if (dgDeadlinesButtonUnlocked(localStorage)) {
+          if (typeof dgDeadlinesButtonUnlocked === "function" && dgDeadlinesButtonUnlocked(localStorage)) {
             reveal();
-            return;
           }
         } catch (e) {}
-        var times = [];
-        function onCornerClick(event) {
-          if (document.documentElement.classList.contains("left-panel-collapsed")) return;
-          event.preventDefault();
-          event.stopPropagation();
-          if (!dgNoteDeadlineUnlockClick(times, Date.now())) return;
-          spot.removeEventListener("click", onCornerClick);
-          dgRememberDeadlinesButton(localStorage);
-          reveal();
-        }
-        spot.addEventListener("click", onCornerClick);
         window.addEventListener("storage", function (event) {
           if (!event || event.key !== DG_DEADLINES_BUTTON_KEY || event.newValue !== "1") return;
           reveal();
