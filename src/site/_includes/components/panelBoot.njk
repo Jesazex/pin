@@ -1,5 +1,6 @@
 {#- Apply pinned panel state on <html> before first paint to avoid open→close flash. -#}
 <script>
+{{ userComputed.deadlineButtonSource | safe }}
 (function () {
       var LEFT_KEY = 'dg-left-panel-collapsed';
       var RIGHT_KEY = 'dg-right-panel-collapsed';
@@ -30,6 +31,11 @@
       } catch (e) {
             html.classList.add('left-panel-collapsed', 'right-panel-collapsed');
       }
+      try {
+            if (dgDeadlinesButtonUnlocked(localStorage)) {
+                  html.classList.add('dg-deadlines-unlocked');
+            }
+      } catch (e) {}
       html.classList.add('dg-panel-boot');
       html.classList.add('dg-math-pending');
 })();

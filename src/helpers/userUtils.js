@@ -21,6 +21,10 @@ const folderOpenSource = fs
   .readFileSync(path.join(__dirname, "folderOpenState.js"), "utf8")
   .replace(/\nif \(typeof module === "object"[\s\S]*$/, "\n");
 
+const deadlineButtonSource = fs
+  .readFileSync(path.join(__dirname, "deadlineButtonUnlock.js"), "utf8")
+  .replace(/\nif \(typeof module === "object"[\s\S]*$/, "\n");
+
 function jsonForInlineScript(value) {
   return JSON.stringify(value)
     .replace(/</g, "\\u003c")
@@ -49,10 +53,12 @@ function userComputed(data) {
     deadlinesClientSource,
     tileLabelInkSource,
     folderOpenSource,
+    deadlineButtonSource,
   };
 }
 
 exports.userComputed = userComputed;
 exports.deadlinesClientSource = deadlinesClientSource;
 exports.folderOpenSource = folderOpenSource;
+exports.deadlineButtonSource = deadlineButtonSource;
 exports.jsonForInlineScript = jsonForInlineScript;
