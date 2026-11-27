@@ -2,7 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
-import { copyLectureMarkdown, getFileTree } from "./filetreeUtils.js";
+import { copyLectureMarkdown, getFileTree, lectureNeighbors } from "./filetreeUtils.js";
+import { userComputed } from "./userUtils.js";
 
 // Helper to build a minimal note object for testing
 function makeNote(filePathStem, data = {}, body = "") {
@@ -340,6 +341,131 @@ describe("filetreeUtils", () => {
       };
       const tree = getFileTree(data);
       expect(tree["treeonly.md"].hide).toBe(true);
+    });
+  });
+
+  describe("lecture neighbors", () => {
+    function lecturePage(data, stem) {
+      return {
+        ...data,
+        page: { filePathStem: `/notes${stem}` },
+      };
+    }
+
+    function physicsNotes(extra = {}) {
+      return {
+        collections: {
+          note: [
+            makeNote("/Лекции/Физика/Физика 1101", {
+              permalink: "/lekczii/fizika/fizika-1101/",
+            }),
+            makeNote("/Лекции/Физика/Физика 1102", {
+              permalink: "/lekczii/fizika/fizika-1102/",
+              ...extra.middle,
+            }),
+            makeNote("/Лекции/Физика/Физика 1103", {
+              permalink: "/lekczii/fizika/fizika-1103/",
+            }),
+            makeNote("/Лекции/Информатика/Инфа 1101", {
+              permalink: "/lekczii/informatika/infa-1101/",
+            }),
+            makeNote("/beta", { permalink: "/beta/" }),
+          ],
+        },
+        navigationOrder: extra.navigationOrder,
+      };
+    }
+
+    it("uses the sidebar list order inside the lecture folder", () => {
+      const data = physicsNotes({
+        navigationOrder: {
+          "/Лекции/Физика": ["Физика 1103", "Физика 1101", "Физика 1102"],
+        },
+      });
+
+      expect(lectureNeighbors(lecturePage(data, "/Лекции/Физика/Физика 1103"))).toEqual({
+        prev: null,
+        next: { permalink: "/lekczii/fizika/fizika-1101/" },
+      });
+      expect(lectureNeighbors(lecturePage(data, "/Лекции/Физика/Физика 1101"))).toEqual({
+        prev: { permalink: "/lekczii/fizika/fizika-1103/" },
+        next: { permalink: "/lekczii/fizika/fizika-1102/" },
+      });
+      expect(lectureNeighbors(lecturePage(data, "/Лекции/Физика/Физика 1102"))).toEqual({
+        prev: { permalink: "/lekczii/fizika/fizika-1101/" },
+        next: null,
+      });
+    });
+
+    it("appends lectures missing from the order after the ordered ones", () => {
+      const data = physicsNotes({
+        navigationOrder: {
+          "/Лекции/Физика": ["Физика 1101", "Физика 1102"],
+        },
+      });
+
+      expect(lectureNeighbors(lecturePage(data, "/Лекции/Физика/Физика 1102"))).toEqual({
+        prev: { permalink: "/lekczii/fizika/fizika-1101/" },
+        next: { permalink: "/lekczii/fizika/fizika-1103/" },
+      });
+    });
+
+    it("follows the natural sidebar order when the folder has no custom list", () => {
+      const data = {
+        collections: {
+          note: [
+            makeNote("/Лекции/Линал и Ангем/Линал 1108", {
+              permalink: "/lekczii/linal-i-angem/linal-1108/",
+            }),
+            makeNote("/Лекции/Линал и Ангем/Ангем 1101", {
+              permalink: "/lekczii/linal-i-angem/angem-1101/",
+            }),
+            makeNote("/Лекции/Линал и Ангем/Ангем 1102", {
+              permalink: "/lekczii/linal-i-angem/angem-1102/",
+            }),
+          ],
+        },
+      };
+
+      expect(lectureNeighbors(lecturePage(data, "/Лекции/Линал и Ангем/Ангем 1102"))).toEqual({
+        prev: { permalink: "/lekczii/linal-i-angem/angem-1101/" },
+        next: { permalink: "/lekczii/linal-i-angem/linal-1108/" },
+      });
+      expect(lectureNeighbors(lecturePage(data, "/Лекции/Линал и Ангем/Линал 1108")).next).toBeNull();
+    });
+
+    it("skips a hidden lecture, so it is not a neighbor", () => {
+      const data = physicsNotes({ middle: { hide: true } });
+
+      expect(lectureNeighbors(lecturePage(data, "/Лекции/Физика/Физика 1101"))).toEqual({
+        prev: null,
+        next: { permalink: "/lekczii/fizika/fizika-1103/" },
+      });
+      expect(lectureNeighbors(lecturePage(data, "/Лекции/Физика/Физика 1102"))).toBeNull();
+    });
+
+    it("does not cross into another folder", () => {
+      const data = physicsNotes();
+
+      expect(lectureNeighbors(lecturePage(data, "/Лекции/Информатика/Инфа 1101"))).toBeNull();
+      expect(
+        lectureNeighbors(lecturePage(data, "/Лекции/Физика/Физика 1103")).next
+      ).toBeNull();
+    });
+
+    it("returns nothing for a note that is not a lecture", () => {
+      const data = physicsNotes();
+      expect(lectureNeighbors(lecturePage(data, "/beta"))).toBeNull();
+    });
+
+    it("is exposed on the lecture page data", () => {
+      const data = physicsNotes();
+      const page = lecturePage(data, "/Лекции/Физика/Физика 1102");
+      expect(userComputed(page).lectureNav).toEqual({
+        prev: { permalink: "/lekczii/fizika/fizika-1101/" },
+        next: { permalink: "/lekczii/fizika/fizika-1103/" },
+      });
+      expect(userComputed(lecturePage(data, "/beta")).lectureNav).toBeNull();
     });
   });
 });

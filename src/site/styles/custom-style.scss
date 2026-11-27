@@ -1058,6 +1058,90 @@ main.content > hr.dg-deadline-divider {
     text-underline-offset: 0.15em;
 }
 
+// Previous sits on the left, next on the right. A missing neighbor is not
+// rendered, and the remaining button keeps its side.
+.lecture-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 2.75rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid color-mix(in srgb, var(--text-normal) 28%, transparent);
+}
+
+a.lecture-nav-link,
+.markdown-rendered a.lecture-nav-link,
+.markdown-preview-view a.lecture-nav-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-height: 2.6em;
+    margin: 0;
+    padding: 0.55em 1.05em;
+    border: 1px solid color-mix(in srgb, var(--text-normal) 32%, transparent);
+    border-radius: var(--dg-search-btn-radius, 8px);
+    background: color-mix(in srgb, var(--text-normal) 10%, var(--background-primary));
+    color: var(--text-normal) !important;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    text-decoration: none !important;
+    text-decoration-line: none !important;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+a.lecture-nav-link.lecture-nav-next,
+.markdown-rendered a.lecture-nav-link.lecture-nav-next,
+.markdown-preview-view a.lecture-nav-link.lecture-nav-next {
+    margin-left: auto;
+}
+
+a.lecture-nav-link:hover,
+a.lecture-nav-link:focus-visible,
+.markdown-rendered a.lecture-nav-link:hover,
+.markdown-rendered a.lecture-nav-link:focus-visible,
+.markdown-preview-view a.lecture-nav-link:hover,
+.markdown-preview-view a.lecture-nav-link:focus-visible {
+    color: var(--text-accent, var(--link-color-hover, var(--link-color))) !important;
+    border-color: var(--text-accent, var(--interactive-accent, var(--background-modifier-border)));
+    text-decoration: none !important;
+    text-decoration-line: none !important;
+}
+
+a.lecture-nav-link:focus-visible {
+    outline: 2px solid var(--text-accent, var(--interactive-accent));
+    outline-offset: 2px;
+}
+
+@media (max-width: 700px) {
+    .lecture-nav {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    a.lecture-nav-link,
+    .markdown-rendered a.lecture-nav-link,
+    .markdown-preview-view a.lecture-nav-link {
+        width: 100%;
+    }
+
+    a.lecture-nav-link.lecture-nav-next,
+    .markdown-rendered a.lecture-nav-link.lecture-nav-next,
+    .markdown-preview-view a.lecture-nav-link.lecture-nav-next {
+        margin-left: 0;
+    }
+}
+
+#search-preview .lecture-nav {
+    display: none;
+}
+
 // Note tables sit in the middle of the article, and the text in every cell
 // is centered — including columns markdown marked left or right. A table
 // wider than the column still scrolls inside its wrapper. The deadline grid

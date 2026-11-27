@@ -274,6 +274,53 @@ function computeFileTree(data) {
   return fileTree;
 }
 
+function notePathAfterNotes(stem) {
+  const parts = String(stem || "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter(Boolean);
+  const notesAt = parts.lastIndexOf("notes");
+  return notesAt === -1 ? parts : parts.slice(notesAt + 1);
+}
+
+function lectureLink(note) {
+  if (!note) return null;
+  const permalink = typeof note.permalink === "string" ? note.permalink : "";
+  if (!permalink || permalink === "/") return null;
+  return { permalink };
+}
+
+// Next and previous are the neighboring notes in the same folder, in the
+// same order as the sidebar list. A missing side means that button is omitted.
+function lectureNeighbors(data) {
+  const stem = (data && data.page && data.page.filePathStem) || "";
+  const rel = notePathAfterNotes(stem);
+  if (rel[0] !== LECTURE_FOLDER || rel.length < 2) return null;
+
+  const tree = getFileTree(data);
+  let folder = tree;
+  for (let i = 0; i < rel.length - 1; i++) {
+    folder = folder && folder[rel[i]];
+  }
+  if (!folder || !folder.isFolder) return null;
+
+  const fileKey = rel[rel.length - 1].replace(/\.md$/i, "") + ".md";
+  const notes = [];
+  for (const key of Object.keys(folder)) {
+    const child = folder[key];
+    if (!child || !child.isNote || child.hide) continue;
+    notes.push({ key, permalink: child.permalink });
+  }
+  const index = notes.findIndex((note) => note.key === fileKey);
+  if (index === -1) return null;
+
+  const prev = lectureLink(index > 0 ? notes[index - 1] : null);
+  const next = lectureLink(index < notes.length - 1 ? notes[index + 1] : null);
+  if (!prev && !next) return null;
+  return { prev, next };
+}
+
 exports.getFileTree = getFileTree;
 exports.copyLectureMarkdown = copyLectureMarkdown;
 exports.lectureDownloadFromStem = lectureDownloadFromStem;
+exports.lectureNeighbors = lectureNeighbors;
